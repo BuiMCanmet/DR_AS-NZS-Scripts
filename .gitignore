@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+#lib/
 lib64/
 parts/
 sdist/
@@ -127,3 +127,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+#Ignore everything
+*
+
+#Exceptions
+!*/
+!.gitignore
+!scripts/
+!Lib/svpelab/pAus4777.py
