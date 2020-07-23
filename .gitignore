@@ -134,5 +134,5 @@ dmypy.json
 #Exceptions
 !*/
 !.gitignore
-!scripts/
+!Scripts/*.py
 !Lib/svpelab/pAus4777.py
