@@ -605,153 +605,121 @@ class DataLogging:
         # except Exception as e:
         #    raise p1547Error('Error in get_tr_data(): %s' % (str(e)))
 
-'''
 class CriteriaValidation:
-    def __init__(self, criteria):
-        self.criteria_mode = criteria
+    def __init__(self):
 
     def evaluate_criterias(self):
-        if self.criteria_mode[0] is True:
-            self.open_loop_resp_criteria()
-        if self.criteria_mode[1] is True or self.criteria_mode[2] is True:
-            self.result_accuracy_criteria()
+        self.response_commencement_time_criteria()
+        self.response_completion_time_accuracy_criteria()
 
-    def calculate_open_loop_value(self, y0, y_ss, duration, tr):
+    def response_commencement_time_criteria(self, tr=1):
         """
-        Calculated the anticipated Y(Tr +/- MRA_T) values based on duration and Tr
+                TRANSIENT: the Eut must begin to respond at a voltage disbalance before the response commencement time
 
-        Note: for a unit step response Y(t) = 1 - exp(-t/tau) where tau is the time constant
+                    The variable y_tr is the value used to verify the time response requirement.
+                    |----------------|----------------|----------------|----------------|
+                             commencement tr     completion tr   20 secondes    Commencement tr
+                    |                |                |
+                    y_initial        y_tr             y_final_tr
 
-        :param y0: initial Y(0) value
-        :param y_ss: steady-state solution, e.g., Y(infinity)
-        :param duration: time since the change in the input parameter that the output should be calculated
-        :param tr: open loop response time (90% change or 2.3 * time constant)
+                    (DR AS/NZS 4777.2-2020) Where a power quality response mode is enabled the inverter shall commence
+                    and complete the required response according to the defined characteristics of Clause 3.3.2 within
+                    the relevant times specified in Table 3.5. Response times faster than the maximum times in Table 3.5
+                    are permitted, and commencement and completion of the inverter response should not be unnecessarily
+                    delayed or slowed.
+                                Table 3.5 — Power quality response modes — Maximum response times
+                +------------------------------------------------------------+----------------------------------------+
+                |      Region      |       Response Commencement Time        |        Response Completion Time        |
+                +------------------------------------------------------------+----------------------------------------+
+                |       All        |                   1s                    |                  10s                   |
+                +------------------------------------------------------------+----------------------------------------+
 
-        :return: output Y(duration) anticipated based on the open loop response function
-        """
-
-        time_const = tr / (-(math.log(0.1)))  # ~2.3 * time constants to reach the open loop response time in seconds
-        number_of_taus = duration / time_const  # number of time constants into the response
-        resp_fraction = 1 - math.exp(-number_of_taus)  # fractional response after the duration, e.g. 90%
-
-        # Y must be 90% * (Y_final - Y_initial) + Y_initial
-        resp = (y_ss - y0) * resp_fraction + y0  # expand to y units
-
-        return resp
-
-    def open_loop_resp_criteria(self, tr=1):
-        """
-        TRANSIENT: Open Loop Time Response (OLTR) = 90% of (y_final-y_initial) + y_initial
-
-            The variable y_tr is the value used to verify the time response requirement.
-            |----------|----------|----------|----------|
-                     1st tr     2nd tr     3rd tr     4th tr
-            |          |          |
-            y_initial  y_tr       y_final_tr
-
-            (1547.1)After each step, the open loop response time, Tr, is evaluated.
-            The expected output, Y(Tr), at one times the open loop response time,
-            is calculated as 90%*(Y_final_tr - Y_initial ) + Y_initial
+                    y_tr != y_initial
         """
 
         y = self.y_criteria[0]
-        mra_y = self.MRA[y]
 
         duration = self.tr_value[f"timestamp_{tr}"] - self.initial_value['timestamp']
         duration = duration.total_seconds()
-        self.ts.log('Calculating pass/fail for Tr = %s sec, with a target of %s sec' %
-                    (duration, tr))
+        self.ts.log(f'Calculating pass/fail for Tr = {duration} sec, with a target of {tr} sec')
 
         # Given that Y(time) is defined by an open loop response characteristic, use that curve to
         # calculated the target, minimum, and max, based on the open loop response expectation
-        if self.script_name == CRP:  # for those tests with a flat 90% evaluation
-            y_start = 0.0  # only look at 90% of target
-            mra_t = 0  # direct 90% evaluation without consideration of MRA(time)
-        else:
-            #self.ts.log_debug(f'{self.initial_value[y]}')
-            y_start = self.initial_value[y]['y_value']
-            #y_start = tr_value['%s_INITIAL' % y]
-            mra_t = self.MRA['T'] * duration  # MRA(X) = MRA(time) = 0.01*duration
-
+        y_start = self.initial_value[y]['y_value']
         y_ss = self.tr_value[f'{y}_TR_TARG_{tr}']
-        y_target = self.calculate_open_loop_value(y0=y_start, y_ss=y_ss, duration=duration, tr=tr)  # 90%
         y_meas = self.tr_value[f'{y}_TR_{tr}']
-        self.ts.log_debug(f'y_target = {y_target:.2f}, y_ss [{y_ss:.2f}], y_start [{y_start:.2f}], duration = {duration}, tr={tr}')
+        self.ts.log_debug(f'y_start = {y_start}, y_commmencement_tr = {y_meas}')
 
-        if y_start <= y_target:  # increasing values of y
+        if y_start <= y_ss:  # increasing values of y
             increasing = True
-            # Y(time) = open loop curve, so locate the Y(time) value on the curve
-            y_min = self.calculate_open_loop_value(y0=y_start, y_ss=y_ss,
-                                             duration=duration - 1.5 * mra_t, tr=tr) - 1.5 * mra_y
-            # Determine maximum value based on the open loop response expectation
-            y_max = self.calculate_open_loop_value(y0=y_start, y_ss=y_ss,
-                                             duration=duration + 1.5 * mra_t, tr=tr) + 1.5 * mra_y
         else:  # decreasing values of y
             increasing = False
-            # Y(time) = open loop curve, so locate the Y(time) value on the curve
-            y_min = self.calculate_open_loop_value(y0=y_start, y_ss=y_ss,
-                                             duration=duration + 1.5 * mra_t, tr=tr) - 1.5 * mra_y
-            # Determine maximum value based on the open loop response expectation
-            y_max = self.calculate_open_loop_value(y0=y_start, y_ss=y_ss,
-                                             duration=duration - 1.5 * mra_t, tr=tr) + 1.5 * mra_y
 
-        # pass/fail applied to the open loop time response
-        if self.script_name == CRP:  # 1-sided analysis
-            # Pass: Ymin <= Ymeas when increasing y output
-            # Pass: Ymeas <= Ymax when decreasing y output
-            if increasing:
-                if y_min <= y_meas:
-                    self.tr_value['TR_90_%_PF'] = 'Pass'
-                else:
-                    self.tr_value['TR_90_%_PF'] = 'Fail'
-                self.ts.log_debug('Transient y_targ = %s, y_min [%s] <= y_meas [%s] = %s' %
-                                  (y_target, y_min, y_meas, self.tr_value['TR_90_%_PF']))
-            else:  # decreasing
-                if y_meas <= y_max:
-                    self.tr_value['TR_90_%_PF'] = 'Pass'
-                else:
-                    self.tr_value['TR_90_%_PF'] = 'Fail'
-                self.ts.log_debug('Transient y_targ = %s, y_meas [%s] <= y_max [%s] = %s'
-                                  % (y_target, y_meas, y_max, self.tr_value['TR_90_%_PF']))
-
-        else:  # 2-sided analysis
-            # Pass/Fail: Ymin <= Ymeas <= Ymax
-            if y_min <= y_meas <= y_max:
-                self.tr_value['TR_90_%_PF'] = 'Pass'
+        # Pass/Fail: Y_start <= Ymeas <= Y_ss
+        if increasing:
+            if y_start <= y_meas <= y_ss:
+                self.tr_value['TR_COMMENCEMENT_PF'] = 'Pass'
             else:
-                self.tr_value['TR_90_%_PF'] = 'Fail'
-            display_value_p1 = f'Transient y_targ ={y_target:.2f}, y_min [{y_min:.2f}] <= y_meas'
-            display_value_p2 = f'[{y_meas:.2f}] <= y_max [{y_max:.2f}] = {self.tr_value["TR_90_%_PF"]}'
+                self.tr_value['TR_COMMENCEMENT_PF'] = 'Fail'
 
-            self.ts.log_debug(f'{display_value_p1} {display_value_p2}')
+            display_value_p1 = f'y_min [{y_start:.2f}] <= y_meas'
+            display_value_p2 = f'[{y_meas:.2f}] <= y_max [{y_ss:.2f}] = {self.tr_value["TR_COMMENCEMENT_PF"]}'
+        else:
+            if y_ss <= y_meas <= y_start:
+                self.tr_value['TR_COMMENCEMENT_PF'] = 'Pass'
+            else:
+                self.tr_value['TR_COMMENCEMENT_PF'] = 'Fail'
 
-    def result_accuracy_criteria(self):
+            display_value_p1 = f'y_min [{y_ss:.2f}] <= y_meas'
+            display_value_p2 = f'[{y_meas:.2f}] <= y_max [{y_start:.2f}] = {self.tr_value["TR_COMMENCEMENT_PF"]}'
+        self.ts.log_debug(f'{display_value_p1} {display_value_p2}')
 
-        # Note: Note sure where criteria_mode[1] (SS accuracy after 1 Tr) is used in IEEE 1547.1
+
+    def response_completion_time_accuracy_criteria(self):
+        """
+            Steady-State: the Eut must have linearly responded at a voltage disbalance before or equal to the response completion
+            time and within the tolerance of table 2.5 and the power limitation in table 3.7 (Volt-Var) and 3.6
+            (Volt-Watt)
+
+                The variable y_tr is the value used to verify the time response requirement.
+                |----------------|----------------|----------------|----------------|
+                         commencement tr     completion tr   20 secondes    Commencement tr
+                |                |                |
+                y_initial        y_tr             y_final_tr
+
+                (DR AS/NZS 4777.2-2020) Where a power quality response mode is enabled the inverter shall commence
+                and complete the required response according to the defined characteristics of Clause 3.3.2 within
+                the relevant times specified in Table 3.5. Response times faster than the maximum times in Table 3.5
+                are permitted, and commencement and completion of the inverter response should not be unnecessarily
+                delayed or slowed.
+                            Table 3.5 — Power quality response modes — Maximum response times
+            +------------------------------------------------------------+----------------------------------------+
+            |      Region      |       Response Commencement Time        |        Response Completion Time        |
+            +------------------------------------------------------------+----------------------------------------+
+            |       All        |                   1s                    |                  10s                   |
+            +------------------------------------------------------------+----------------------------------------+
+
+            (y_target - y_tolerance <= y_final_tr <= y_target + y_tolerance) for P and Q
+
+        """
         for y in self.y_criteria:
             for tr_iter in range(self.tr_value['FIRST_ITER'], self.tr_value['LAST_ITER']+1):
 
-                if (self.tr_value['FIRST_ITER'] == tr_iter and self.criteria_mode[1]) or \
-                        (self.tr_value['LAST_ITER'] == tr_iter and self.criteria_mode[2]):
-
-
                     # pass/fail assessment for the steady-state values
-                    #self.ts.log_debug(f'current iter={tr_iter}')
-                    if self.tr_value['%s_TR_%s_MIN' % (y, tr_iter)] <= \
-                            self.tr_value['%s_TR_%s' % (y, tr_iter)] <= self.tr_value['%s_TR_%s_MAX' % (y, tr_iter)]:
-                        self.tr_value['%s_TR_%s_PF' % (y, tr_iter)] = 'Pass'
+                    if self.tr_value[f'{y}_TR_{tr_iter}_MIN'] <= \
+                            self.tr_value[f'{y}_TR_{tr_iter}'] <= self.tr_value[f'{y}_TR_{tr_iter}_MAX']:
+                        self.tr_value[f'{y}_TR_{tr_iter}_PF'] = 'Pass'
                     else:
-                        self.tr_value['%s_TR_%s_PF' % (y, tr_iter)] = 'Fail'
+                        self.tr_value[f'{y}_TR_{tr_iter}_PF'] = 'Fail'
 
-                    self.ts.log('  Steady state %s(Tr_%s) evaluation: %0.1f <= %0.1f <= %0.1f  [%s]' % (
+                    self.ts.log(f'  Steady state %s(Tr_%s) evaluation: %0.1f <= %0.1f <= %0.1f  [%s]' % (
                         y,
                         tr_iter,
-                        self.tr_value['%s_TR_%s_MIN' % (y, tr_iter)],
-                        self.tr_value['%s_TR_%s' % (y, tr_iter)],
-                        self.tr_value['%s_TR_%s_MAX' % (y, tr_iter)],
-                        self.tr_value['%s_TR_%s_PF' % (y, tr_iter)]))
-'''
-'''
+                        self.tr_value[f'{y}_TR_{tr_iter}_MIN'],
+                        self.tr_value[f'{y}_TR_{tr_iter}'],
+                        self.tr_value[f'{y}_TR_{tr_iter}_MAX'],
+                        self.tr_value[f'{y}_TR_{tr_iter}_PF']))
+
 class ImbalanceComponent:
 
     def __init__(self):
@@ -789,6 +757,7 @@ class ImbalanceComponent:
         individual phase shall be evaluated. For EUTs that response to the average of the three-phase effective
         (RMS) values mor the positive sequence of voltages, the total three-phase reactive and active power
         shall be evaluated.
+        '''
         '''
         try:
             if imbalance_angle_fix == 'std':
@@ -828,7 +797,7 @@ class ImbalanceComponent:
         except Exception as e:
             self.ts.log_error('Incorrect Parameter value : %s' % e)
             raise
-
+        '''
     def set_grid_asymmetric(self, grid, case, imbalance_resp='AVG_3PH_RMS'):
         """
         Configure the grid simulator to change the magnitude and angles.
@@ -851,17 +820,12 @@ class ImbalanceComponent:
         elif imbalance_resp is 'POSITIVE_SEQUENCE_VOLTAGES':
             #TODO to be completed
             pass
-"""
-Section for criteria validation
-"""
-"""
-class PassFail:
-    def __init__(self):
-"""
+
+
 """
 Section reserved for HIL model object
 """
-'''
+
 
 class HilModel(object):
     def __init__(self, ts, support_interfaces):
