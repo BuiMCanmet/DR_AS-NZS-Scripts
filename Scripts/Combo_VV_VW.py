@@ -56,7 +56,7 @@ F = 'F'
 P = 'P'
 Q = 'Q'
 
-def Combo_volt_vars_volt_watt_mode(combo_vv_vw_curves, combo_vv_vw_response_time):
+def Combo_vv_vw_mode(combo_vv_vw_curves, combo_vv_vw_response_time):
 
     result = script.RESULT_FAIL
     daq = None
@@ -205,48 +205,35 @@ def Combo_volt_vars_volt_watt_mode(combo_vv_vw_curves, combo_vv_vw_response_time
             # step C
             v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv3']
             # step DE 1 to 5
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = (v_pairs['Vv4'] - v_pairs['Vv3'])/5 +\
-                                                                    v_pairs['Vv3']
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 2*(v_pairs['Vv4'] - v_pairs['Vv3']) / 5 \
-                                                                    + v_pairs['Vv3']
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 3*(v_pairs['Vv4'] - v_pairs['Vv3']) / 5 \
-                                                                    + v_pairs['Vv3']
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 4*(v_pairs['Vv4'] - v_pairs['Vv3']) / 5 \
-                                                                    + v_pairs['Vv3']
+
+            delta_v4_v3_step = (v_pairs['Vv4'] - v_pairs['Vv3'])/5.0
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = delta_v4_v3_step + v_pairs['Vv3']
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 2*delta_v4_v3_step + v_pairs['Vv3']
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 3*delta_v4_v3_step + v_pairs['Vv3']
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 4*delta_v4_v3_step + v_pairs['Vv3']
             v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv4']
 
             # step FG 1 to 5
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv4'] \
-                                                                    - (v_pairs['Vv4'] - v_pairs['Vv3']) / 5
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv4'] \
-                                                                    - 2*(v_pairs['Vv4'] - v_pairs['Vv3']) / 5
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv4'] \
-                                                                    - 3*(v_pairs['Vv4'] - v_pairs['Vv3']) / 5
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv4'] \
-                                                                    - 4*(v_pairs['Vv4'] - v_pairs['Vv3']) / 5
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv4'] - 1*delta_v4_v3_step
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv4'] - 2*delta_v4_v3_step
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv4'] - 3*delta_v4_v3_step
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv4'] - 4*delta_v4_v3_step
             v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv3']
 
+            delta_v2_v1_step = (v_pairs['Vv2'] - v_pairs['Vv1'])/5.0
             # step H
             v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv2']
             # step IJ 1 to 5
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv2'] \
-                                                                    - (v_pairs['Vv2'] - v_pairs['Vv1']) / 5
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv2'] \
-                                                                    - 2*(v_pairs['Vv2'] - v_pairs['Vv1']) / 5
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv2'] \
-                                                                    - 3*(v_pairs['Vv2'] - v_pairs['Vv1']) / 5
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv2'] \
-                                                                    - 4*(v_pairs['Vv2'] - v_pairs['Vv1']) / 5
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv2'] - 1*delta_v2_v1_step
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv2'] - 2*delta_v2_v1_step
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv2'] - 3*delta_v2_v1_step
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv2'] - 4*delta_v2_v1_step
             v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv1']
             # step KL 1 to 5
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = (v_pairs['Vv2'] - v_pairs['Vv1']) / 5 \
-                                                                    + v_pairs['Vv1']
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 2*(v_pairs['Vv2'] - v_pairs['Vv1']) / 5 \
-                                                                    + v_pairs['Vv1']
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 3*(v_pairs['Vv2'] - v_pairs['Vv1']) / 5 \
-                                                                    + v_pairs['Vv1']
-            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 4*(v_pairs['Vv2'] - v_pairs['Vv1']) / 5 \
-                                                                    + v_pairs['Vv1']
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 1*delta_v2_v1_step + v_pairs['Vv1']
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 2*delta_v2_v1_step + v_pairs['Vv1']
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 3*delta_v2_v1_step + v_pairs['Vv1']
+            v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = 4*delta_v2_v1_step + v_pairs['Vv1']
             v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vv2']
             # step MN
             v_steps_dict[Combo_VoltVar_VoltWatt.get_step_label()] = v_pairs['Vw2'] - 1
@@ -358,8 +345,8 @@ def test_run():
         if ts.param_value('combo_vv_vw.test_AR') == 'Enabled':
             combo_vv_vw_curves.append(5)
 
-        result = Combo_volt_vars_volt_watt_mode(combo_vv_vw_curves=combo_vv_vw_curves,
-                                                combo_vv_vw_response_time=combo_vv_vw_response_time)
+        result = Combo_vv_vw_mode(combo_vv_vw_curves=combo_vv_vw_curves,
+                                  combo_vv_vw_response_time=combo_vv_vw_response_time)
 
     except script.ScriptFail as e:
         reason = str(e)
