@@ -56,7 +56,7 @@ F = 'F'
 P = 'P'
 Q = 'Q'
 
-def Combo_vv_vw_mode(combo_vv_vw_curves, combo_vv_vw_response_time):
+def Combo_vv_vw_mode(vv_curves, vv_response_time):
 
     result = script.RESULT_FAIL
     daq = None
@@ -145,11 +145,11 @@ def Combo_vv_vw_mode(combo_vv_vw_curves, combo_vv_vw_response_time):
         '''
         Repeat the test for each regions curves (Australia A, Australia B, Australia C, New Zealand and Allowed range)
         '''
-        for combo_vv_vw_curve in combo_vv_vw_curves:
-            ts.log(f'Starting test with characteristic curve {combo_vv_vw_curve}')
-            Combo_VoltVar_VoltWatt.reset_curve(combo_vv_vw_curve)
-            Combo_VoltVar_VoltWatt.reset_time_settings(tr=combo_vv_vw_response_time[combo_vv_vw_curve], number_tr=2)
-            v_pairs = Combo_VoltVar_VoltWatt.get_params(curve=combo_vv_vw_curve)
+        for vv_curve in vv_curves:
+            ts.log(f'Starting test with characteristic curve {vv_curve}')
+            Combo_VoltVar_VoltWatt.reset_curve(vv_curve)
+            Combo_VoltVar_VoltWatt.reset_time_settings(tr=vv_response_time[vv_curve], number_tr=2)
+            v_pairs = Combo_VoltVar_VoltWatt.get_params(curve=vv_curve)
             ts.log_debug(f'v_pairs:{v_pairs}')
 
             '''
@@ -159,28 +159,28 @@ def Combo_vv_vw_mode(combo_vv_vw_curves, combo_vv_vw_response_time):
             if eut is not None:
                 # Activate volt-var function with following parameters
                 # SunSpec convention is to use percentages for V and Q points.
-                combo_vv_vw_curve_params = {
+                vv_curve_params = {
                     'v': [(v_pairs['Vv1'] / v_nom) * 100, (v_pairs['Vv2'] / v_nom) * 100,
                           (v_pairs['Vv3'] / v_nom) * 100, (v_pairs['Vv4'] / v_nom) * 100],
                     'var': [(v_pairs['Q1'] / s_rated) * 100, (v_pairs['Q2'] / s_rated) * 100,
                             (v_pairs['Q3'] / s_rated) * 100, (v_pairs['Q4'] / s_rated) * 100],
                     'vref': round(v_nom, 2),
-                    'RmpPtTms': combo_vv_vw_response_time[combo_vv_vw_curve]
+                    'RmpPtTms': vv_response_time[vv_curve]
                 }
-                ts.log_debug(f'Sending Volt-Var points: {combo_vv_vw_curve_params}')
-                eut.volt_var(params={'Ena': True, 'ACTCRV': combo_vv_vw_curve, 'curve': combo_vv_vw_curve_params})
+                ts.log_debug(f'Sending Volt-Var points: {vv_curve_params}')
+                eut.volt_var(params={'Ena': True, 'ACTCRV': vv_curve, 'curve': vv_curve_params})
                 ts.log_debug(f'Initial EUT Volt-Var settings are {eut.volt_var()}')
 
                 # Activate volt-watt function with following parameters
                 # SunSpec convention is to use percentages for V and P points.
-                combo_vv_vw_curve_params = {
+                vv_curve_params = {
                     'v': [(v_pairs['VW1'] / v_nom) * 100,
                           (v_pairs['VW2'] / v_nom) * 100],
                     'w': [(v_pairs['P1'] / s_rated) * 100,
                           (v_pairs['P2'] / s_rated) * 100]
                 }
-                ts.log_debug(f'Sending Volt-Watt points: {combo_vv_vw_curve_params}')
-                eut.volt_watt(params={'Ena': True, 'ACTCRV': combo_vv_vw_curve, 'curve': combo_vv_vw_curve_params})
+                ts.log_debug(f'Sending Volt-Watt points: {vv_curve_params}')
+                eut.volt_watt(params={'Ena': True, 'ACTCRV': vv_curve, 'curve': vv_curve_params})
                 ts.log_debug(f'Initial EUT Volt-Watt settings are {eut.volt_watt()}')
             """
              (b) Set the grid source equal to the grid test voltage. Vary the energy source until the a.c. output
@@ -240,7 +240,7 @@ def Combo_vv_vw_mode(combo_vv_vw_curves, combo_vv_vw_response_time):
 
             ts.log_debug(v_steps_dict)
 
-            dataset_filename = f'combo_vv_vw_{combo_vv_vw_curve}'
+            dataset_filename = f'vv_{vv_curve}'
             Combo_VoltVar_VoltWatt.reset_filename(filename=dataset_filename)
             # Start the data acquisition systems
             daq.data_capture(True)
@@ -322,31 +322,31 @@ def test_run():
         Configuration
         """
 
-        mode = ts.param_value('combo_vv_vw.mode')
+        mode = ts.param_value('vv.mode')
 
         """
         Test Configuration
         """
         # list of active tests
-        combo_vv_vw_curves = []
-        combo_vv_vw_response_time = [1, 1, 1, 1]
+        vv_curves = []
+        vv_response_time = [1, 1, 1, 1]
 
         # Normal combined volt-var volt-watt test (Section 5.14.4)
 
         v_nom = ts.param_value('eut.v_nom')
-        if ts.param_value('combo_vv_vw.test_AA') == 'Enabled':
-            combo_vv_vw_curves.append(1)
-        if ts.param_value('combo_vv_vw.test_AB') == 'Enabled':
-            combo_vv_vw_curves.append(2)
-        if ts.param_value('combo_vv_vw.test_AC') == 'Enabled':
-            combo_vv_vw_curves.append(3)
-        if ts.param_value('combo_vv_vw.test_NZ') == 'Enabled':
-            combo_vv_vw_curves.append(4)
-        if ts.param_value('combo_vv_vw.test_AR') == 'Enabled':
-            combo_vv_vw_curves.append(5)
+        if ts.param_value('vv.test_AA') == 'Enabled':
+            vv_curves.append(1)
+        if ts.param_value('vv.test_AB') == 'Enabled':
+            vv_curves.append(2)
+        if ts.param_value('vv.test_AC') == 'Enabled':
+            vv_curves.append(3)
+        if ts.param_value('vv.test_NZ') == 'Enabled':
+            vv_curves.append(4)
+        if ts.param_value('vv.test_AR') == 'Enabled':
+            vv_curves.append(5)
 
-        result = Combo_vv_vw_mode(combo_vv_vw_curves=combo_vv_vw_curves,
-                                  combo_vv_vw_response_time=combo_vv_vw_response_time)
+        result = Combo_vv_vw_mode(vv_curves=vv_curves,
+                                  vv_response_time=vv_response_time)
 
     except script.ScriptFail as e:
         reason = str(e)
@@ -391,32 +391,37 @@ def run(test_script):
 
 info = script.ScriptInfo(name=os.path.basename(__file__), run=run, version='1.0.0')
 
-# combo_vv_vw test parameters
-info.param_group('combo_vv_vw', label='Test Parameters')
-info.param('combo_vv_vw.mode', label='combined Volt-Var and Volt-Watt mode', default='Normal', values=['Normal'])
-info.param('combo_vv_vw.test_AA', label='Australia A curve', default='Enabled', values=['Disabled', 'Enabled'],
-           active='combo_vv_vw.mode', active_value=['Normal'])
-info.param('combo_vv_vw.test_AB', label='Australia B curve', default='Disabled', values=['Disabled', 'Enabled'],
-           active='combo_vv_vw.mode', active_value=['Normal'])
-info.param('combo_vv_vw.test_AC', label='Australia C curve', default='Disabled', values=['Disabled', 'Enabled'],
-           active='combo_vv_vw.mode', active_value=['Normal'])
-info.param('combo_vv_vw.test_NZ', label='New Zealand curve', default='Disabled', values=['Disabled', 'Enabled'],
-           active='combo_vv_vw.mode', active_value=['Normal'])
-info.param('combo_vv_vw.test_AR', label='Allowed Range curve', default='Disabled', values=['Disabled', 'Enabled'],
-           active='combo_vv_vw.mode', active_value=['Normal'])
-info.param('combo_vv_vw.test_AR_Vw1', label='Setting Vw1', default=250,
-           active='combo_vv_vw.test_AR', active_value=['Enabled'])
-info.param('combo_vv_vw.test_AR_Vw2', label='Setting Vw2', default=260,
-           active='combo_vv_vw.test_AR', active_value=['Enabled'])
-info.param('combo_vv_vw.test_AR_Vv1', label='Setting Vv1', default=200,
-           active='combo_vv_vw.test_AR', active_value=['Enabled'])
-info.param('combo_vv_vw.test_AR_Vv2', label='Setting Vv2', default=220,
-           active='combo_vv_vw.test_AR', active_value=['Enabled'])
-info.param('combo_vv_vw.test_AR_Vv3', label='Setting Vv3', default=240,
-           active='combo_vv_vw.test_AR', active_value=['Enabled'])
-info.param('combo_vv_vw.test_AR_Vv4', label='Setting Vv4', default=260,
-           active='combo_vv_vw.test_AR', active_value=['Enabled'])
+# vv test parameters
+info.param_group('vv', label='Test Parameters')
+info.param('vv.mode', label='combined Volt-Var and Volt-Watt mode', default='Normal', values=['Normal'])
+info.param('vv.test_AA', label='Australia A curve', default='Enabled', values=['Disabled', 'Enabled'],
+           active='vv.mode', active_value=['Normal'])
+info.param('vv.test_AB', label='Australia B curve', default='Disabled', values=['Disabled', 'Enabled'],
+           active='vv.mode', active_value=['Normal'])
+info.param('vv.test_AC', label='Australia C curve', default='Disabled', values=['Disabled', 'Enabled'],
+           active='vv.mode', active_value=['Normal'])
+info.param('vv.test_NZ', label='New Zealand curve', default='Disabled', values=['Disabled', 'Enabled'],
+           active='vv.mode', active_value=['Normal'])
+info.param('vv.test_AR', label='Allowed Range curve', default='Disabled', values=['Disabled', 'Enabled'],
+           active='vv.mode', active_value=['Normal'])
+info.param('vv.commencement_time', label='Commencement time(s):', default=1.0 )
+info.param('vv.completion_time', label='Completion time(s):', default=10.0)
+info.param('vv.combo', label='Combining additional functions', default='Volt-Watt', values=['Volt-Watt'])
 
+"""
+info.param('vv.test_AR_Vw1', label='Setting Vw1', default=250,
+           active='vv.test_AR', active_value=['Enabled'])
+info.param('vv.test_AR_Vw2', label='Setting Vw2', default=260,
+           active='vv.test_AR', active_value=['Enabled'])
+info.param('vv.test_AR_Vv1', label='Setting Vv1', default=200,
+           active='vv.test_AR', active_value=['Enabled'])
+info.param('vv.test_AR_Vv2', label='Setting Vv2', default=220,
+           active='vv.test_AR', active_value=['Enabled'])
+info.param('vv.test_AR_Vv3', label='Setting Vv3', default=240,
+           active='vv.test_AR', active_value=['Enabled'])
+info.param('vv.test_AR_Vv4', label='Setting Vv4', default=260,
+           active='vv.test_AR', active_value=['Enabled'])
+"""
 # EUT general parameters
 info.param_group('eut', label='EUT Parameters', glob=True)
 info.param('eut.phases', label='Phases', default='Single Phase', values=['Single phase', 'Split phase', 'Three phase'])
@@ -424,19 +429,21 @@ info.param('eut.s_rated', label='Apparent power rating (VA)', default=10000.0)
 info.param('eut.p_rated', label='Output power rating (W)', default=8000.0)
 info.param('eut.p_min', label='Minimum Power Rating(W)', default=1000.)
 info.param('eut.var_rated', label='Output var rating (vars)', default=2000.0)
-info.param('eut.v_nom', label='Nominal AC voltage (V)', default=120.0, desc='Nominal voltage for the AC simulator.')
-info.param('eut.v_low', label='Minimum AC voltage (V)', default=116.0)
-info.param('eut.v_high', label='Maximum AC voltage (V)', default=132.0)
+info.param('eut.v_nom', label='Nominal AC voltage (V)', default=230.0, desc='Nominal voltage for the AC simulator.')
+info.param('eut.v_low', label='Minimum AC voltage (V)', default=210.0)
+info.param('eut.v_high', label='Maximum AC voltage (V)', default=250.0)
 info.param('eut.v_in_nom', label='V_in_nom: Nominal input voltage (Vdc)', default=400)
-info.param('eut.f_nom', label='Nominal AC frequency (Hz)', default=60.0)
-info.param('eut.f_max', label='Maximum frequency in the continuous operating region (Hz)', default=66.)
-info.param('eut.f_min', label='Minimum frequency in the continuous operating region (Hz)', default=56.)
+info.param('eut.f_nom', label='Nominal AC frequency (Hz)', default=50.0)
+info.param('eut.f_max', label='Maximum frequency in the continuous operating region (Hz)', default=55.)
+info.param('eut.f_min', label='Minimum frequency in the continuous operating region (Hz)', default=45.)
+
+'''
 info.param('eut.imbalance_resp', label='EUT response to phase imbalance is calculated by:',
            default='EUT response to the average of the three-phase effective (RMS)',
            values=['EUT response to the individual phase voltages',
                    'EUT response to the average of the three-phase effective (RMS)',
                    'EUT response to the positive sequence of voltages'])
-
+'''
 
 
 # Other equipment parameters
