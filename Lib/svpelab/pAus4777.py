@@ -607,10 +607,96 @@ class DataLogging:
 
 class CriteriaValidation:
     def __init__(self):
+        self.T_min = None
+        self.increasing = True
 
-    def evaluate_criterias(self):
+    def evaluate_criterias(self, daq):
         self.response_commencement_time_criteria()
         self.response_completion_time_accuracy_criteria()
+        self.get_commencement_time(daq)
+
+    def get_commencement_time(self, daq, tr):
+
+        """
+           The EUT needs to begin his response to a voltage regulation demand before the response commencement time.
+           Therefore, the instant that the EUT begin responding needs to be determined and this time needs to be smaller
+           than 1 seconde
+
+                                                                                            -|
+                                                                                         /
+                                                                                      -
+                                                                                    /
+                                                                                 -
+                                                                               |
+                                                                            -   Commencement tr
+                   y2...................................................../
+                                                                      -  |
+                   y1 and y_start + y_tol.........................../    x2
+                                                                 -  |
+                |--y_initial-----------------------------------/    x1
+
+                |                                              |
+                tr_initial                                   beginning_time
+
+                (DR AS/NZS 4777.2-2020) Where a power quality response mode is enabled the inverter shall commence
+                and complete the required response according to the defined characteristics of Clause 3.3.2 within
+                the relevant times specified in Table 3.5. Response times faster than the maximum times in Table 3.5
+                are permitted, and commencement and completion of the inverter response should not be unnecessarily
+                delayed or slowed.
+                            Table 3.5 — Power quality response modes — Maximum response times
+            +------------------------------------------------------------+----------------------------------------+
+            |      Region      |       Response Commencement Time        |        Response Completion Time        |
+            +------------------------------------------------------------+----------------------------------------+
+            |       All        |                   1s                    |                  10s                   |
+            +------------------------------------------------------------+----------------------------------------+
+
+             Pass/Fail criteria : Pass If (y_initial - b)/a (beginning_time) < commencement tr
+             where a = (y2-y1)/(x2-x1) and b = y1 - ax1
+        """
+        data = daq.data_capture_dataset()
+        t = data.point_data('TIME')
+        for y in self.y_criteria:
+            if self.T_min[y] is None:
+                self.T_min[y] = 0.00
+            y_tol = 1000 * 0.04
+            y_start = self.initial_value[y]['y_value']
+            y_ss = self.tr_value[f'{y}_TR_TARG_{tr}']
+            y_lim_max = self.tr_value[f'{y}_TARGET_MAX']  # the maximum possible value for y
+            y_lim_min = self.tr_value[f'{y}_TARGET_MIN']  # the minimum possible value for y
+            if self.phases == 'Single phase':
+                y_values = data.point_data(f'AC_{y}_1')
+                y_values = [y_values[i] for i in range(self.T_min[y], len(y_values) - 1)]
+
+            elif self.phases == 'Split phase':
+                y_values_1 = data.point_data(f'AC_{y}_1')
+                y_values_2 = data.point_data(f'AC_{y}_2')
+
+                y_values = [y_values_1[i] + y_values_2[i] for i in range(self.T_min[y], len(y_values_1) - 1)]
+
+            elif self.phases == 'Three phase':
+                y_values_1 = data.point_data(f'AC_{y}_1')
+                y_values_2 = data.point_data(f'AC_{y}_2')
+                y_values_3 = data.point_data(f'AC_{y}_3')
+                y_values = [y_values_1[i] + y_values_2[i] + y_values_3[i] for i in
+                            range(self.T_min, len(y_values_1) - 1)]
+            j = 0
+            while ((y_start + y_tol <= y_values[j] <= y_ss and y_values[j] <= y_lim_max + y_tol) and
+                   self.increasing is True) or ((y_ss <= y_values[j] <= y_start - y_tol and
+                                                 y_lim_min - y_tol <= y_values[j]) and self.increasing is False):
+                j += 1
+                if j == len(y_values):
+                    self.tr_value['1s_TR_PF'] = 'Fail'
+                    break
+            # pass/fail for the commencement time
+            self.T_min[y] = j
+            a = (y_values[j + 1] - y_values[j]) / (t[j + 1] - t[j])
+            b = y_values[j] - a * t[j]
+            begin_time = (y_start - b) / a
+            # Todo: Apply this criteria to situations where the variable a is really small => not variation in Y values
+            if begin_time <= self.tr_value['TR1s_TARGET']: # Target time of the response commencement time
+                self.tr_value['1s_TR_PF'] = 'Pass'
+            else:
+                self.tr_value['1s_TR_PF'] = 'Fail'
 
     def response_commencement_time_criteria(self, tr=1):
         """
@@ -669,9 +755,9 @@ class CriteriaValidation:
                               f' y_90% = {y_target}, y_tr = {y_meas}')
 
             if y_start <= y_ss:  # increasing values of y
-                increasing = True
+                self.increasing = True
             else:  # decreasing values of y
-                increasing = False
+                self.increasing = False
             # Y(time) = open loop curve, so locate the Y(time) value on the curve
             y_min = y_target - y_tol
             # Determine maximum value based on the open loop response expectation
@@ -679,7 +765,7 @@ class CriteriaValidation:
 
             # Pass/Fail: Y_start <= Ymeas <= Y_ss
             if increasing:
-                if y_start + y_tol <= y_1s <= y_ss and y_meas <= y_lim_max + y_tol:
+                if y_start + y_tol <= y_1s <= y_ss and y_1s <= y_lim_max + y_tol:
                     self.tr_value['TR_COMMENCEMENT_PF'] = 'Pass'
                 else:
                     self.tr_value['TR_COMMENCEMENT_PF'] = 'Fail'
@@ -692,7 +778,7 @@ class CriteriaValidation:
                 display_value_p2 = f'[{y_1s:.2f}] <= y_max [{y_ss:.2f}] = {self.tr_value["TR_COMMENCEMENT_PF"]}'
                 display_value_p3 = f'y_min_90% [{y_min:.2f}] <= y_meas [{y_meas:.2f}] = {self.tr_value["TR_90%_PF"]}'
             else: # decreasing
-                if y_ss <= y_1s <= y_start - y_tol and y_lim_min - y_tol <= y_meas:
+                if y_ss <= y_1s <= y_start - y_tol and y_lim_min - y_tol <= y_1s:
                     self.tr_value['TR_COMMENCEMENT_PF'] = 'Pass'
                 else:
                     self.tr_value['TR_COMMENCEMENT_PF'] = 'Fail'
