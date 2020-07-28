@@ -212,23 +212,42 @@ def Combo_vv_vw_mode(vv_curves, vv_response_time):
             # step DE 1 to 5
 
             delta_v4_v3_step = (vv_pairs['Vv4'] - vv_pairs['Vv3'])/5.0
+            delta_v2_v1_step = (vv_pairs['Vv2'] - vv_pairs['Vv1'])/5.0
+
+            voltage = vv_pairs['Vv3']
+            for i in range(0, 6):
+                v_steps_dict[VoltVar.get_step_label()] = voltage + i*delta_v4_v3_step
+
+            # step FG 1 to 5
+            for i in range(0, 6):
+                v_steps_dict[VoltVar.get_step_label()] = voltage - i*delta_v4_v3_step
+
+            """
             v_steps_dict[VoltVar.get_step_label()] = delta_v4_v3_step + vv_pairs['Vv3']
             v_steps_dict[VoltVar.get_step_label()] = 2*delta_v4_v3_step + vv_pairs['Vv3']
             v_steps_dict[VoltVar.get_step_label()] = 3*delta_v4_v3_step + vv_pairs['Vv3']
             v_steps_dict[VoltVar.get_step_label()] = 4*delta_v4_v3_step + vv_pairs['Vv3']
             v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv4']
-
-            # step FG 1 to 5
+            """
+            """
             v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv4'] - 1*delta_v4_v3_step
             v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv4'] - 2*delta_v4_v3_step
             v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv4'] - 3*delta_v4_v3_step
             v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv4'] - 4*delta_v4_v3_step
             v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv3']
+            """
 
-            delta_v2_v1_step = (vv_pairs['Vv2'] - vv_pairs['Vv1'])/5.0
+            voltage = vv_pairs['Vv2']
+            # step H
+            for i in range(0, 6):
+                # step IJ 1 to 5
+                v_steps_dict[VoltVar.get_step_label()] = voltage - i*delta_v2_v1_step
+            for i in range(0, 6):
+                # step KL 1 to 5
+                v_steps_dict[VoltVar.get_step_label()] = voltage + i*delta_v2_v1_step
+            """
             # step H
             v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv2']
-            # step IJ 1 to 5
             v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv2'] - 1*delta_v2_v1_step
             v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv2'] - 2*delta_v2_v1_step
             v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv2'] - 3*delta_v2_v1_step
@@ -241,6 +260,7 @@ def Combo_vv_vw_mode(vv_curves, vv_response_time):
             v_steps_dict[VoltVar.get_step_label()] = 4*delta_v2_v1_step + vv_pairs['Vv1']
             v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv2']
             # step MN
+            """
             v_steps_dict[VoltVar.get_step_label()] = vw_pairs['Vw2'] - 1
 
             ts.log_debug(v_steps_dict)
@@ -256,7 +276,6 @@ def Combo_vv_vw_mode(vv_curves, vv_response_time):
                     if grid is not None:
                         grid.voltage(v_step)
                 else:
-
                     VoltVar.start(daq=daq, step_label=step_label)
 
                     if grid is not None:
@@ -272,6 +291,7 @@ def Combo_vv_vw_mode(vv_curves, vv_response_time):
                 for each voltage step. Plot results on a graph of voltage versus apparent power, active power
                 and reactive power.
             """
+
             ts.log('Sampling complete')
             dataset_filename = dataset_filename + ".csv"
             daq.data_capture(False)
