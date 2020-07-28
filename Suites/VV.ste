@@ -1,0 +1,54 @@
+<suite globals="True" name="VV">
+  <members>
+    <member name="VV_AusA.tst" />
+    <member name="VV_AusB.tst" />
+    <member name="VV_AusC.tst" />
+    <member name="VV_MANUAL.tst" />
+    <member name="VV_NZ.tst" />
+  </members>
+  <params>
+    <param name="der.manual.slave_id" type="int">1</param>
+    <param name="gridsim.elgar.phases" type="int">1</param>
+    <param name="pvsim.terrasas.channel" type="string">1</param>
+    <param name="das.manual.chan_1_label" type="string">1</param>
+    <param name="der.manual.ipaddr" type="string">1.2.3.4</param>
+    <param name="gridsim.elgar.i_max" type="float">10.0</param>
+    <param name="eut.f_min" type="float">45.0</param>
+    <param name="eut.f_nom" type="float">50.0</param>
+    <param name="eut.f_max" type="float">55.0</param>
+    <param name="gridsim.elgar.freq" type="float">60.0</param>
+    <param name="eut.v_low" type="float">116.0</param>
+    <param name="eut.v_nom" type="float">120.0</param>
+    <param name="gridsim.elgar.v_nom" type="float">120.0</param>
+    <param name="eut.v_high" type="float">132.0</param>
+    <param name="pvsim.terrasas.ipaddr" type="string">192.168.0.167</param>
+    <param name="gridsim.elgar.v_max" type="float">200.0</param>
+    <param name="eut.v_in_nom" type="int">400</param>
+    <param name="pvsim.terrasas.vmp" type="float">460.0</param>
+    <param name="pvsim.terrasas.overvoltage" type="float">660.0</param>
+    <param name="der.manual.ipport" type="int">999</param>
+    <param name="eut.p_min" type="float">1000.0</param>
+    <param name="das.manual.sample_interval" type="int">1000</param>
+    <param name="eut.var_rated" type="float">2000.0</param>
+    <param name="pvsim.terrasas.pmp" type="float">3000.0</param>
+    <param name="eut.p_rated" type="float">8000.0</param>
+    <param name="eut.s_rated" type="float">10000.0</param>
+    <param name="das.manual.chan_1" type="string">AC</param>
+    <param name="gridsim.auto_config" type="string">Disabled</param>
+    <param name="gridsim.switch.mode" type="string">Disabled</param>
+    <param name="hil.mode" type="string">Disabled</param>
+    <param name="pvsim.terrasas.curve_type" type="string">EN50530</param>
+    <param name="gridsim.mode" type="string">Elgar704</param>
+    <param name="gridsim.wavegen.manual.visa_address" type="string">GPIB0::10::INSTR</param>
+    <param name="der.mode" type="string">Manual</param>
+    <param name="gridsim.wavegen.mode" type="string">Manual</param>
+    <param name="das.mode" type="string">Manual</param>
+    <param name="gridsim.wavegen.manual.gen_mode" type="string">ON</param>
+    <param name="pvsim.mode" type="string">TerraSAS</param>
+    <param name="eut.phases" type="string">Three phase</param>
+    <param name="das.manual.chan_2" type="string">Unused</param>
+    <param name="das.manual.chan_3" type="string">Unused</param>
+    <param name="gridsim.wavegen.manual.comm" type="string">VISA</param>
+    <param name="gridsim.elgar.comm" type="string">WAVEGEN</param>
+  </params>
+</suite>

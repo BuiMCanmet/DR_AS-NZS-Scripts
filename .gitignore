@@ -135,4 +135,5 @@ dmypy.json
 !*/
 !.gitignore
 !Scripts/*.py
+!Suites/*.ste
 !Lib/svpelab/pAus4777.py

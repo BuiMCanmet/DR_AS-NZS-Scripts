@@ -154,9 +154,9 @@ class UtilParameters:
         self.region = ''
         self.filename = None
 
-    def reset_curve(self, curve=1):
-        self.region = curve
-        self.ts.log_debug(f'P1547 Librairy curve has been set {curve}')
+    def reset_curve(self, region='Australia A'):
+        self.region = region
+        self.ts.log_debug(f'P1547 Librairy curve has been set {region}')
 
     def reset_pwr(self, pwr=1.0):
         self.pwr = pwr
@@ -181,12 +181,12 @@ class UtilParameters:
     """
     Getter functions
     """
-    def get_params(self, curve=None):
+    def get_params(self, region=None):
 
-        if curve == None:
+        if region == None:
             return self.param
         else:
-            return self.param[self.region]
+            return self.param[region]
 
     def get_step_label(self):
         """
@@ -267,7 +267,7 @@ class UtilParameters:
         except Exception as e:
             self.ts.log_error('Inverter phase parameter not set correctly.')
             self.ts.log_error('phases=%s' % self.phases)
-            raise p1547Error('Error in get_measurement_total() : %s' % (str(e)))
+            raise pAus4777Error('Error in get_measurement_total() : %s' % (str(e)))
 
         # TODO : imbalance_resp should change the way you acquire the data
         if type_meas == 'V':
@@ -353,13 +353,14 @@ class DataLogging:
 
 
         # Time response criteria will take last placed value of Y variables
+        """
         if self.criteria_mode[0]:  # transient response pass/fail
             row_data.append('90%_BY_TR=1')
         if self.criteria_mode[1]:
             row_data.append('WITHIN_BOUNDS_BY_TR=1')
         if self.criteria_mode[2]:  # steady-state accuracy
             row_data.append('WITHIN_BOUNDS_BY_LAST_TR')
-
+        """
 
         for meas_value in self.meas_values:
             row_data.append('%s_MEAS' % meas_value)
@@ -1017,16 +1018,16 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
     #def __init__(self, ts, imbalance=False):
     def __init__(self, ts):
         self.ts = ts
-        self.criteria_mode = [True, True, True]
+        #self.criteria_mode = [True, True, True]
         EutParameters.__init__(self, ts)
         UtilParameters.__init__(self)
         #TODO verify this section for australian standard
         DataLogging.__init__(self, meas_values=['V', 'Q', 'P'], x_criteria=['V'], y_criteria=['Q'])
-        CriteriaValidation.__init__(self, self.criteria_mode)
+        CriteriaValidation.__init__(self)
         #if imbalance:
         #    ImbalanceComponent.__init__(self)
         self.pairs = {}
-        self.param = [0, 0, 0, 0]
+        self.param = {}
         self.target_dict = []
         self.script_name = VV
         self.script_complete_name = 'Volt-Var'
@@ -1038,11 +1039,12 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
         # self.set_imbalance_config()
 
     def set_params(self):
+
         self.param['Australia A'] = {
-            'V1': round((207./230.) * self.v_nom, 2),
-            'V2': round((220./230.) * self.v_nom, 2),
-            'V3': round((240./230.) * self.v_nom, 2),
-            'V4': round((258./230.) * self.v_nom, 2),
+            'Vv1': round((207./230.) * self.v_nom, 2),
+            'Vv2': round((220./230.) * self.v_nom, 2),
+            'Vv3': round((240./230.) * self.v_nom, 2),
+            'Vv4': round((258./230.) * self.v_nom, 2),
             'Q1': round(self.s_rated * 0.44, 2),
             'Q2': round(self.s_rated * 0.0, 2),
             'Q3': round(self.s_rated * 0.0, 2),
@@ -1050,10 +1052,10 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
         }
 
         self.param['Australia B'] = {
-            'V1': round((205./230.) * self.v_nom, 2),
-            'V2': round((220./230.) * self.v_nom, 2),
-            'V3': round((235./230.) * self.v_nom, 2),
-            'V4': round((255./230.) * self.v_nom, 2),
+            'Vv1': round((205./230.) * self.v_nom, 2),
+            'Vv2': round((220./230.) * self.v_nom, 2),
+            'Vv3': round((235./230.) * self.v_nom, 2),
+            'Vv4': round((255./230.) * self.v_nom, 2),
             'Q1': round(self.s_rated * 0.3, 2),
             'Q2': round(self.s_rated * 0, 2),
             'Q3': round(self.s_rated * 0, 2),
@@ -1061,10 +1063,10 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
         }
 
         self.param['Australia C'] = {
-            'V1': round((215./230.) * self.v_nom, 2),
-            'V2': round((230./230.) * self.v_nom, 2),
-            'V3': round((240./230.) * self.v_nom, 2),
-            'V4': round((255./230.) * self.v_nom, 2),
+            'Vv1': round((215./230.) * self.v_nom, 2),
+            'Vv2': round((230./230.) * self.v_nom, 2),
+            'Vv3': round((240./230.) * self.v_nom, 2),
+            'Vv4': round((255./230.) * self.v_nom, 2),
             'Q1': round(self.s_rated * 0.44, 2),
             'Q2': round(self.s_rated * 0, 2),
             'Q3': round(self.s_rated * 0, 2),
@@ -1072,10 +1074,10 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
         }
 
         self.param['New Zealand'] = {
-            'V1': round((215./230.) * self.v_nom, 2),
-            'V2': round((230./230.) * self.v_nom, 2),
-            'V3': round((240./230.) * self.v_nom, 2),
-            'V4': round((255./230.) * self.v_nom, 2),
+            'Vv1': round((215./230.) * self.v_nom, 2),
+            'Vv2': round((230./230.) * self.v_nom, 2),
+            'Vv3': round((240./230.) * self.v_nom, 2),
+            'Vv4': round((255./230.) * self.v_nom, 2),
             'Q1': round(self.s_rated * 0.60, 2),
             'Q2': round(self.s_rated * 0, 2),
             'Q3': round(self.s_rated * 0, 2),
@@ -1114,7 +1116,7 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
         UtilParameters.__init__(self)
         #TODO verify this section for australian standard
         DataLogging.__init__(self, meas_values=['V', 'Q', 'P'], x_criteria=['V'], y_criteria=['Q'])
-        CriteriaValidation.__init__(self, self.criteria_mode)
+        CriteriaValidation.__init__(self)
         #if imbalance:
         #    ImbalanceComponent.__init__(self)
         self.pairs = {}
@@ -1131,26 +1133,26 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
 
     def set_params(self):
         self.param['Australia A'] = {
-            'V1': round((256./230.) * self.v_nom, 2),
-            'V2': round((260./230.) * self.v_nom, 2),
+            'Vw1': round((256./230.) * self.v_nom, 2),
+            'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
         self.param['Australia B'] = {
-            'V1': round((250./230.) * self.v_nom, 2),
-            'V2': round((260./230.) * self.v_nom, 2),
+            'Vw1': round((250./230.) * self.v_nom, 2),
+            'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
         self.param['Australia C'] = {
-            'V1': round((253./230.) * self.v_nom, 2),
-            'V2': round((260./230.) * self.v_nom, 2),
+            'Vw1': round((253./230.) * self.v_nom, 2),
+            'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
         self.param['New Zealand'] = {
-            'V1': round((241./230.) * self.v_nom, 2),
-            'V2': round((246./230.)* self.v_nom, 2),
+            'Vw1': round((241./230.) * self.v_nom, 2),
+            'Vw2': round((246./230.)* self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }

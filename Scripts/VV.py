@@ -39,7 +39,7 @@ from svpelab import pvsim
 from svpelab import das
 from svpelab import der
 from svpelab import hil
-from svpelab import p1547
+from svpelab import pAus4777
 import script
 from svpelab import result as rslt
 from datetime import datetime, timedelta
@@ -56,7 +56,7 @@ F = 'F'
 P = 'P'
 Q = 'Q'
 
-def Combo_vv_vw_mode(vv_curves, vv_response_time):
+def Combo_vv_vw_mode(vv_curves):
 
     result = script.RESULT_FAIL
     daq = None
@@ -84,14 +84,14 @@ def Combo_vv_vw_mode(vv_curves, vv_response_time):
         phases = ts.param_value('eut.phases')
 
         commencement_time = ts.param_value('vv.commencement_time')
-        completetion_time = ts.param_value('vv.completion_time')
+        vv_response_time = ts.param_value('vv.completion_time')
 
         """
         A separate module has been create for the 1547.1 and the DR_AS_NZS_4777.2 Standard
         """
-        VoltVar = p1547.VoltVar(ts=ts, imbalance=False)
+        VoltVar = pAus4777.VoltVar(ts=ts)
         ts.log_debug(f"1547.1 Library configured for {VoltVar.get_script_name()}")
-        VoltWatt = p1547.VoltWatt(ts=ts, imbalance=False)
+        VoltWatt = pAus4777.VoltWatt(ts=ts)
 
         # result params
         result_params = VoltVar.get_rslt_param_plot()
@@ -148,12 +148,14 @@ def Combo_vv_vw_mode(vv_curves, vv_response_time):
         '''
         Repeat the test for each regions curves (Australia A, Australia B, Australia C, New Zealand and Allowed range)
         '''
+        ts.log(f'curves={vv_curves}')
         for vv_curve in vv_curves:
+            ts.log(f'curves={vv_curve}')
             ts.log(f'Starting test with characteristic curve {vv_curve}')
             VoltVar.reset_curve(vv_curve)
-            VoltVar.reset_time_settings(tr=vv_response_time[vv_curve], number_tr=2)
-            vv_pairs = VoltVar.get_params(curve=vv_curve)
-            vw_pairs = VoltWatt.get_params(curve=vv_curve)
+            VoltVar.reset_time_settings(tr=vv_response_time, number_tr=2)
+            vv_pairs = VoltVar.get_params(region=vv_curve)
+            vw_pairs = VoltWatt.get_params(region=vv_curve)
             ts.log_debug(f'volt-var_pairs:{vv_pairs}')
             ts.log_debug(f'volt-watt_pairs:{vw_pairs}')
 
@@ -170,7 +172,7 @@ def Combo_vv_vw_mode(vv_curves, vv_response_time):
                     'var': [(vv_pairs['Q1'] / s_rated) * 100, (vv_pairs['Q2'] / s_rated) * 100,
                             (vv_pairs['Q3'] / s_rated) * 100, (vv_pairs['Q4'] / s_rated) * 100],
                     'vref': round(v_nom, 2),
-                    'RmpPtTms': vv_response_time[vv_curve]
+                    'RmpPtTms': vv_response_time
                 }
                 ts.log_debug(f'Sending Volt-Var points: {vv_curve_params}')
                 eut.volt_var(params={'Ena': True, 'ACTCRV': vv_curve, 'curve': vv_curve_params})
@@ -216,52 +218,22 @@ def Combo_vv_vw_mode(vv_curves, vv_response_time):
 
             voltage = vv_pairs['Vv3']
             for i in range(0, 6):
-                v_steps_dict[VoltVar.get_step_label()] = voltage + i*delta_v4_v3_step
+                v_steps_dict[VoltVar.get_step_label()] = round(voltage + i*delta_v4_v3_step, 2)
 
             # step FG 1 to 5
             for i in range(0, 6):
-                v_steps_dict[VoltVar.get_step_label()] = voltage - i*delta_v4_v3_step
-
-            """
-            v_steps_dict[VoltVar.get_step_label()] = delta_v4_v3_step + vv_pairs['Vv3']
-            v_steps_dict[VoltVar.get_step_label()] = 2*delta_v4_v3_step + vv_pairs['Vv3']
-            v_steps_dict[VoltVar.get_step_label()] = 3*delta_v4_v3_step + vv_pairs['Vv3']
-            v_steps_dict[VoltVar.get_step_label()] = 4*delta_v4_v3_step + vv_pairs['Vv3']
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv4']
-            """
-            """
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv4'] - 1*delta_v4_v3_step
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv4'] - 2*delta_v4_v3_step
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv4'] - 3*delta_v4_v3_step
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv4'] - 4*delta_v4_v3_step
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv3']
-            """
+                v_steps_dict[VoltVar.get_step_label()] = round(voltage - i*delta_v4_v3_step, 2)
 
             voltage = vv_pairs['Vv2']
             # step H
             for i in range(0, 6):
                 # step IJ 1 to 5
-                v_steps_dict[VoltVar.get_step_label()] = voltage - i*delta_v2_v1_step
+                v_steps_dict[VoltVar.get_step_label()] = round(voltage - i*delta_v2_v1_step, 2)
             for i in range(0, 6):
                 # step KL 1 to 5
-                v_steps_dict[VoltVar.get_step_label()] = voltage + i*delta_v2_v1_step
-            """
-            # step H
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv2']
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv2'] - 1*delta_v2_v1_step
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv2'] - 2*delta_v2_v1_step
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv2'] - 3*delta_v2_v1_step
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv2'] - 4*delta_v2_v1_step
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv1']
-            # step KL 1 to 5
-            v_steps_dict[VoltVar.get_step_label()] = 1*delta_v2_v1_step + vv_pairs['Vv1']
-            v_steps_dict[VoltVar.get_step_label()] = 2*delta_v2_v1_step + vv_pairs['Vv1']
-            v_steps_dict[VoltVar.get_step_label()] = 3*delta_v2_v1_step + vv_pairs['Vv1']
-            v_steps_dict[VoltVar.get_step_label()] = 4*delta_v2_v1_step + vv_pairs['Vv1']
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv2']
-            # step MN
-            """
-            v_steps_dict[VoltVar.get_step_label()] = vw_pairs['Vw2'] - 1
+                v_steps_dict[VoltVar.get_step_label()] = round(voltage + i*delta_v2_v1_step, 2)
+
+            v_steps_dict[VoltVar.get_step_label()] = round(vw_pairs['Vw2'] - 1.)
 
             ts.log_debug(v_steps_dict)
 
