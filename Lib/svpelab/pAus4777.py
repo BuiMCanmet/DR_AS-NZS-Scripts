@@ -606,33 +606,34 @@ class DataLogging:
         # except Exception as e:
         #    raise p1547Error('Error in get_tr_data(): %s' % (str(e)))
 
+
 class CriteriaValidation:
     def __init__(self):
         self.T_min = None
-        self.increasing = True
 
     def evaluate_criterias(self, daq):
-        self.response_commencement_time_criteria()
         self.response_completion_time_accuracy_criteria()
-        self.get_commencement_time(daq)
+        self.transient_criteria_validation(daq)
 
-    def get_commencement_time(self, daq, tr):
+    def transient_criteria_validation(self, daq, tr=1):
 
         """
            The EUT needs to begin his response to a voltage regulation demand before the response commencement time.
            Therefore, the instant that the EUT begin responding needs to be determined and this time needs to be smaller
            than 1 seconde
+           Then, for the time response itself, it needs to have the good behavior. At the set time response TR1, the
+           Y_TR1 is around the Open Loop Time Response value which is 90% of (Y_final - Y_initial) + y_initial
 
-                                                                                            -|
-                                                                                         /
-                                                                                      -
-                                                                                    /
-                                                                                 -
-                                                                               |
-                                                                            -   Commencement tr
-                   y2...................................................../
+                                                                                            ------------y_final-----|
+                   OLTR + Y_tol... ... ... ... ... ... ... ... ... ... ... ... ... ... .../
+                   OLTR (90% * (y_final - y_initial) + y_initial) ... ... ... ... ... ..-
+                   OLTR - Y_tol ... ... ... ... ... ... ... ... ... ... ... ... ... ./  |
+                                                                                 -     TR1
+                                                                               /
+                                                                            - |
+                   y2... ... ... ... ... ... ... ... ... ... ... ... ... ./Commencement tr
                                                                       -  |
-                   y1 and y_start + y_tol.........................../    x2
+                   y1 and y_initial + y_tol... ... ... ... ... ... .../    x2
                                                                  -  |
                 |--y_initial-----------------------------------/    x1
 
@@ -651,19 +652,41 @@ class CriteriaValidation:
             |       All        |                   1s                    |                  10s                   |
             +------------------------------------------------------------+----------------------------------------+
 
-             Pass/Fail criteria : Pass If (y_initial - b)/a (beginning_time) < commencement tr
-             where a = (y2-y1)/(x2-x1) and b = y1 - ax1
+             Pass/Fail criteria 1 : the Time response respect the response commencement time
+             Pass If (y_initial - b)/a (beginning_time) < commencement tr
+             where a = (y2-y1)/(x2-x1) and b = y1 - a*x1
+
+             Pass/Fail cirteria 2 : The Expected value at TR1 is achieved
+             OLTR = 90%*(Y_final - Y_initial) + Y_initial :
+             Pass if OLTR - Y_tol <= Y_TR1 <= OLTR + Y_tol
         """
         data = daq.data_capture_dataset()
         t = data.point_data('TIME')
         for y in self.y_criteria:
             if self.T_min[y] is None:
                 self.T_min[y] = 0.00
-            y_tol = 1000 * 0.04
-            y_start = self.initial_value[y]['y_value']
-            y_ss = self.tr_value[f'{y}_TR_TARG_{tr}']
-            y_lim_max = self.tr_value[f'{y}_TARGET_MAX']  # the maximum possible value for y
-            y_lim_min = self.tr_value[f'{y}_TARGET_MIN']  # the minimum possible value for y
+
+            duration = self.tr_value[f"timestamp_{tr}"] - self.initial_value['timestamp']
+            duration = duration.total_seconds()
+            self.ts.log(f'Calculating pass/fail for Tr = {duration} sec, with a target of {tr} sec')
+
+            y_tol = self.s_rated * 0.04  # The tolerance of the y value = 4 % of the nominal Apparent power
+            y_lim_max = self.s_rated * 1.2  # the maximum possible value for y is 120% of the nominal Apparent power
+            y_lim_min = self.s_rated * -1.2  # the minimum possible value for y is -120% of the nominal Apparent power
+            y_initial = self.initial_value[y]['y_value']
+            y_final = self.tr_value[f'{y}_TR_TARG_{tr}']
+            y_target = self.calculate_open_loop_value(y0=y_initial, y_ss=y_final, duration=duration, tr=tr)  # 90%
+            y_meas = self.tr_value[f'{y}_TR_{tr}']
+
+            if y_initial <= y_final:  # increasing values of y
+                increasing = True
+            else:  # decreasing values of y
+                increasing = False
+            # Y(time) = open loop curve, so locate the Y(time) value on the curve
+            y_min = y_target - y_tol
+            # Determine maximum value based on the open loop response expectation
+            y_max = y_target + y_tol
+
             if self.phases == 'Single phase':
                 y_values = data.point_data(f'AC_{y}_1')
                 y_values = [y_values[i] for i in range(self.T_min[y], len(y_values) - 1)]
@@ -681,118 +704,44 @@ class CriteriaValidation:
                 y_values = [y_values_1[i] + y_values_2[i] + y_values_3[i] for i in
                             range(self.T_min, len(y_values_1) - 1)]
             j = 0
-            while ((y_start + y_tol <= y_values[j] <= y_ss and y_values[j] <= y_lim_max + y_tol) and
-                   self.increasing is True) or ((y_ss <= y_values[j] <= y_start - y_tol and
-                                                 y_lim_min - y_tol <= y_values[j]) and self.increasing is False):
+            while ((y_initial + y_tol <= y_values[j] <= y_final and y_values[j] <= y_lim_max + y_tol) and
+                   increasing is True) or ((y_final <= y_values[j] <= y_initial - y_tol and
+                                            y_lim_min - y_tol <= y_values[j]) and increasing is False):
                 j += 1
                 if j == len(y_values):
                     self.tr_value['1s_TR_PF'] = 'Fail'
                     break
-            # pass/fail for the commencement time
+            # pass/fail 1 for the commencement time
             self.T_min[y] = j
             a = (y_values[j + 1] - y_values[j]) / (t[j + 1] - t[j])
             b = y_values[j] - a * t[j]
-            begin_time = (y_start - b) / a
+            begin_time = (y_initial - b) / a
             # Todo: Apply this criteria to situations where the variable a is really small => not variation in Y values
-            if begin_time <= self.tr_value['TR1s_TARGET']: # Target time of the response commencement time
+            if begin_time <= self.tr_value['TR1s_TARGET']:  # Target time of the response commencement time
                 self.tr_value['1s_TR_PF'] = 'Pass'
             else:
                 self.tr_value['1s_TR_PF'] = 'Fail'
 
-    def response_commencement_time_criteria(self, tr=1):
-        """
-                TRANSIENT: the Eut must begin to respond at a voltage disbalance before the response commencement time
-                and between the TR1 (Response commencement time) and TR10 (Response completion time), the Eut must have
-                responded.
-
-                Therefore we can evaluate the Open Loop Time Response (OLTR) = 90% of (y_final-y_initial) + y_initial
-
-                    The variable y_tr is the value used to verify the time response requirement.
-                                              OLTR
-                    |----------------|---------|------|----------------|----------------|
-                             commencement tr     completion tr   20 secondes    Commencement tr
-                    |                |                |
-                    y_initial        y_tr             y_final_tr
-
-                    (DR AS/NZS 4777.2-2020) Where a power quality response mode is enabled the inverter shall commence
-                    and complete the required response according to the defined characteristics of Clause 3.3.2 within
-                    the relevant times specified in Table 3.5. Response times faster than the maximum times in Table 3.5
-                    are permitted, and commencement and completion of the inverter response should not be unnecessarily
-                    delayed or slowed.
-                                Table 3.5 — Power quality response modes — Maximum response times
-                +------------------------------------------------------------+----------------------------------------+
-                |      Region      |       Response Commencement Time        |        Response Completion Time        |
-                +------------------------------------------------------------+----------------------------------------+
-                |       All        |                   1s                    |                  10s                   |
-                +------------------------------------------------------------+----------------------------------------+
-
-                 1:   Pass/Fail if y_1s_tr has moved from y_initial to y_final_tr and that it respect the y_limites
-                      increasing : y_initial <= y_1s_tr <= y_final_tr and y_1s_tr <= y_lim_max + y_tolerance
-                      decreasing : y_final_tr <= y_1s_tr <= y_initial and y_lim_min - y_tolerance <= y_1s_tr
-                 2:   Pass/Fail if y_tr is responding correctly :
-                      increasing : y_OLTR - y_tolerance <= y_tr <= y_OLTR + y_tolerance
-
-        """
-
-        for y in self.y_criteria:
-
-            self.ts.log(f'The Y criteria evaluation in the transients Pass/Fail is {y}')
-            y_tol = 1000 * 4/100 # The tolerance of the y value = 4 % of the y nominal
-            y_lim_max = self.tr_value[f'{y}_TARGET_MAX'] # the maximum possible value for y
-            y_lim_min = self.tr_value[f'{y}_TARGET_MIN'] # the minimum possible value for y
-
-            duration = self.tr_value[f"timestamp_{tr}"] - self.initial_value['timestamp']
-            duration = duration.total_seconds()
-            self.ts.log(f'Calculating pass/fail for Tr = {duration} sec, with a target of {tr} sec')
-
-            # Given that Y(time) is defined by an open loop response characteristic, use that curve to
-            # calculated the target, minimum, and max, based on the open loop response expectation
-            y_start = self.initial_value[y]['y_value']
-            y_ss = self.tr_value[f'{y}_TR_TARG_{tr}']
-            y_target = self.calculate_open_loop_value(y0=y_start, y_ss=y_ss, duration=duration, tr=tr)  # 90%
-            y_meas = self.tr_value[f'{y}_TR_{tr}']
-            y_1s = self.tr_value[f'{y}_1S_TR']
-            self.ts.log_debug(f'y_start = {y_start}, y_commmencement_tr = {y_1s}, y_completion_tr = {y_ss},'
-                              f' y_90% = {y_target}, y_tr = {y_meas}')
-
-            if y_start <= y_ss:  # increasing values of y
-                self.increasing = True
-            else:  # decreasing values of y
-                self.increasing = False
-            # Y(time) = open loop curve, so locate the Y(time) value on the curve
-            y_min = y_target - y_tol
-            # Determine maximum value based on the open loop response expectation
-            y_max = y_target + y_tol
-
-            # Pass/Fail: Y_start <= Ymeas <= Y_ss
-            if increasing:
-                if y_start + y_tol <= y_1s <= y_ss and y_1s <= y_lim_max + y_tol:
-                    self.tr_value['TR_COMMENCEMENT_PF'] = 'Pass'
-                else:
-                    self.tr_value['TR_COMMENCEMENT_PF'] = 'Fail'
+            # Pass/Fail 2: OLTR
+            if self.increasing:
                 if y_min <= y_meas:
                     self.tr_value['TR_90%_PF'] = 'Pass'
                 else:
                     self.tr_value['TR_90%_PF'] = 'Fail'
 
-                display_value_p1 = f'y_min [{y_start:.2f}] <= y_meas'
-                display_value_p2 = f'[{y_1s:.2f}] <= y_max [{y_ss:.2f}] = {self.tr_value["TR_COMMENCEMENT_PF"]}'
-                display_value_p3 = f'y_min_90% [{y_min:.2f}] <= y_meas [{y_meas:.2f}] = {self.tr_value["TR_90%_PF"]}'
-            else: # decreasing
-                if y_ss <= y_1s <= y_start - y_tol and y_lim_min - y_tol <= y_1s:
-                    self.tr_value['TR_COMMENCEMENT_PF'] = 'Pass'
-                else:
-                    self.tr_value['TR_COMMENCEMENT_PF'] = 'Fail'
+                display_value_p1 = f" the beginning time [{begin_time:.3f}] <= response commencement time "
+                display_value_p2 = f"[{self.tr_value['TR1s_TARGET']}:.3f] = {self.tr_value['1s_TR_PF']}"
+                display_value_p3 = f"y_min_90% [{y_min:.2f}] <= y_meas [{y_meas:.2f}] = {self.tr_value['TR_90%_PF']}"
+            else:  # decreasing
                 if y_meas <= y_max:
                     self.tr_value['TR_90%_PF'] = 'Pass'
                 else:
                     self.tr_value['TR_90%_PF'] = 'Fail'
 
-                display_value_p1 = f'y_min [{y_ss:.2f}] <= y_meas'
-                display_value_p2 = f'[{y_1s:.2f}] <= y_max [{y_start:.2f}] = {self.tr_value["TR_COMMENCEMENT_PF"]}'
-                display_value_p3 = f'y_meas [{y_meas:.2f}] <= y_max_90% [{y_max:.2f}] = {self.tr_value["TR_90%_PF"]}'
+                display_value_p1 = f" the beginning time [{begin_time:.3f}] <= response commencement time "
+                display_value_p2 = f"[{self.tr_value['TR1s_TARGET']}:.3f] = {self.tr_value['1s_TR_PF']}"
+                display_value_p3 = f"y_meas [{y_meas:.2f}] <= y_max_90% [{y_max:.2f}]  = {self.tr_value['TR_90%_PF']}"
             self.ts.log_debug(f'{display_value_p1} {display_value_p2} {display_value_p3}')
-
 
     def response_completion_time_accuracy_criteria(self):
         """
@@ -822,22 +771,22 @@ class CriteriaValidation:
 
         """
         for y in self.y_criteria:
-            for tr_iter in range(self.tr_value['FIRST_ITER'], self.tr_value['LAST_ITER']+1):
+            for tr_iter in range(self.tr_value['FIRST_ITER'], self.tr_value['LAST_ITER'] + 1):
 
-                    # pass/fail assessment for the steady-state values
-                    if self.tr_value[f'{y}_TR_{tr_iter}_MIN'] <= \
-                            self.tr_value[f'{y}_TR_{tr_iter}'] <= self.tr_value[f'{y}_TR_{tr_iter}_MAX']:
-                        self.tr_value[f'{y}_TR_{tr_iter}_PF'] = 'Pass'
-                    else:
-                        self.tr_value[f'{y}_TR_{tr_iter}_PF'] = 'Fail'
+                # pass/fail assessment for the steady-state values
+                if self.tr_value[f'{y}_TR_{tr_iter}_MIN'] <= \
+                        self.tr_value[f'{y}_TR_{tr_iter}'] <= self.tr_value[f'{y}_TR_{tr_iter}_MAX']:
+                    self.tr_value[f'{y}_TR_{tr_iter}_PF'] = 'Pass'
+                else:
+                    self.tr_value[f'{y}_TR_{tr_iter}_PF'] = 'Fail'
 
-                    self.ts.log(f'  Steady state %s(Tr_%s) evaluation: %0.1f <= %0.1f <= %0.1f  [%s]' % (
-                        y,
-                        tr_iter,
-                        self.tr_value[f'{y}_TR_{tr_iter}_MIN'],
-                        self.tr_value[f'{y}_TR_{tr_iter}'],
-                        self.tr_value[f'{y}_TR_{tr_iter}_MAX'],
-                        self.tr_value[f'{y}_TR_{tr_iter}_PF']))
+                self.ts.log(f'  Steady state %s(Tr_%s) evaluation: %0.1f <= %0.1f <= %0.1f  [%s]' % (
+                    y,
+                    tr_iter,
+                    self.tr_value[f'{y}_TR_{tr_iter}_MIN'],
+                    self.tr_value[f'{y}_TR_{tr_iter}'],
+                    self.tr_value[f'{y}_TR_{tr_iter}_MAX'],
+                    self.tr_value[f'{y}_TR_{tr_iter}_PF']))
 
     def calculate_open_loop_value(self, y0, y_ss, duration, tr):
         """
