@@ -459,7 +459,7 @@ class DataLogging:
         last_iter = self.tr_value['LAST_ITER']
         row_data = []
 
-
+        """
         # Time response criteria will take last placed value of Y variables
         if self.criteria_mode[0]:
             row_data.append(str(self.tr_value['TR_90_%_PF']))
@@ -467,6 +467,7 @@ class DataLogging:
             row_data.append(str(self.tr_value['%s_TR_%s_PF' % (ys[-1], first_iter)]))
         if self.criteria_mode[2]:
             row_data.append(str(self.tr_value['%s_TR_%s_PF' % (ys[-1], last_iter)]))
+        """
 
         # Default measured values are V, P and Q (F can be added) refer to set_meas_variable function
         for meas_value in self.meas_values:
@@ -609,7 +610,7 @@ class DataLogging:
 
 class CriteriaValidation:
     def __init__(self):
-        self.T_min = None
+        self.T_min = {}
 
     def evaluate_criterias(self, daq):
         self.response_completion_time_accuracy_criteria()
@@ -663,8 +664,8 @@ class CriteriaValidation:
         data = daq.data_capture_dataset()
         t = data.point_data('TIME')
         for y in self.y_criteria:
-            if self.T_min[y] is None:
-                self.T_min[y] = 0.00
+            if y not in self.T_min:
+                self.T_min[y] = 0
 
             duration = self.tr_value[f"timestamp_{tr}"] - self.initial_value['timestamp']
             duration = duration.total_seconds()
@@ -689,20 +690,19 @@ class CriteriaValidation:
 
             if self.phases == 'Single phase':
                 y_values = data.point_data(f'AC_{y}_1')
-                y_values = [y_values[i] for i in range(self.T_min[y], len(y_values) - 1)]
+                y_values = y_values[self.T_min[y]:]
 
             elif self.phases == 'Split phase':
                 y_values_1 = data.point_data(f'AC_{y}_1')
                 y_values_2 = data.point_data(f'AC_{y}_2')
 
-                y_values = [y_values_1[i] + y_values_2[i] for i in range(self.T_min[y], len(y_values_1) - 1)]
+                y_values = y_values_1[self.T_min[y]:] + y_values_2[self.T_min[y]:]
 
             elif self.phases == 'Three phase':
                 y_values_1 = data.point_data(f'AC_{y}_1')
                 y_values_2 = data.point_data(f'AC_{y}_2')
                 y_values_3 = data.point_data(f'AC_{y}_3')
-                y_values = [y_values_1[i] + y_values_2[i] + y_values_3[i] for i in
-                            range(self.T_min, len(y_values_1) - 1)]
+                y_values = y_values_1[self.T_min[y]:] + y_values_2[self.T_min[y]:] + y_values_3[self.T_min[y]:]
             j = 0
             while ((y_initial + y_tol <= y_values[j] <= y_final and y_values[j] <= y_lim_max + y_tol) and
                    increasing is True) or ((y_final <= y_values[j] <= y_initial - y_tol and
@@ -712,25 +712,28 @@ class CriteriaValidation:
                     self.tr_value['1s_TR_PF'] = 'Fail'
                     break
             # pass/fail 1 for the commencement time
-            self.T_min[y] = j
+
             a = (y_values[j + 1] - y_values[j]) / (t[j + 1] - t[j])
             b = y_values[j] - a * t[j]
             begin_time = (y_initial - b) / a
+            t_1s = t[self.T_min[y]] + 1.00
             # Todo: Apply this criteria to situations where the variable a is really small => not variation in Y values
-            if begin_time <= self.tr_value['TR1s_TARGET']:  # Target time of the response commencement time
+            if begin_time <= t_1s:  # Target time of the response commencement time
                 self.tr_value['1s_TR_PF'] = 'Pass'
             else:
                 self.tr_value['1s_TR_PF'] = 'Fail'
 
+            self.T_min[y] = j
+
             # Pass/Fail 2: OLTR
-            if self.increasing:
+            if increasing:
                 if y_min <= y_meas:
                     self.tr_value['TR_90%_PF'] = 'Pass'
                 else:
                     self.tr_value['TR_90%_PF'] = 'Fail'
 
                 display_value_p1 = f" the beginning time [{begin_time:.3f}] <= response commencement time "
-                display_value_p2 = f"[{self.tr_value['TR1s_TARGET']}:.3f] = {self.tr_value['1s_TR_PF']}"
+                display_value_p2 = f"[{t_1s:.3f}] = {self.tr_value['1s_TR_PF']}"
                 display_value_p3 = f"y_min_90% [{y_min:.2f}] <= y_meas [{y_meas:.2f}] = {self.tr_value['TR_90%_PF']}"
             else:  # decreasing
                 if y_meas <= y_max:
@@ -739,7 +742,7 @@ class CriteriaValidation:
                     self.tr_value['TR_90%_PF'] = 'Fail'
 
                 display_value_p1 = f" the beginning time [{begin_time:.3f}] <= response commencement time "
-                display_value_p2 = f"[{self.tr_value['TR1s_TARGET']}:.3f] = {self.tr_value['1s_TR_PF']}"
+                display_value_p2 = f"[{t_1s:.3f}] = {self.tr_value['1s_TR_PF']}"
                 display_value_p3 = f"y_meas [{y_meas:.2f}] <= y_max_90% [{y_max:.2f}]  = {self.tr_value['TR_90%_PF']}"
             self.ts.log_debug(f'{display_value_p1} {display_value_p2} {display_value_p3}')
 
@@ -772,10 +775,13 @@ class CriteriaValidation:
         """
         for y in self.y_criteria:
             for tr_iter in range(self.tr_value['FIRST_ITER'], self.tr_value['LAST_ITER'] + 1):
+                y_tol = self.s_rated * 0.04
+                y_target = self.tr_value[f'{y}_TR_TARG_{tr_iter}']
+                y_meas = self.tr_value[f'{y}_TR_{tr_iter}']
+
 
                 # pass/fail assessment for the steady-state values
-                if self.tr_value[f'{y}_TR_{tr_iter}_MIN'] <= \
-                        self.tr_value[f'{y}_TR_{tr_iter}'] <= self.tr_value[f'{y}_TR_{tr_iter}_MAX']:
+                if y_target - y_tol <= y_meas <= y_target + y_tol :
                     self.tr_value[f'{y}_TR_{tr_iter}_PF'] = 'Pass'
                 else:
                     self.tr_value[f'{y}_TR_{tr_iter}_PF'] = 'Fail'
@@ -783,9 +789,9 @@ class CriteriaValidation:
                 self.ts.log(f'  Steady state %s(Tr_%s) evaluation: %0.1f <= %0.1f <= %0.1f  [%s]' % (
                     y,
                     tr_iter,
-                    self.tr_value[f'{y}_TR_{tr_iter}_MIN'],
-                    self.tr_value[f'{y}_TR_{tr_iter}'],
-                    self.tr_value[f'{y}_TR_{tr_iter}_MAX'],
+                    y_target - y_tol,
+                    y_meas,
+                    y_target + y_tol,
                     self.tr_value[f'{y}_TR_{tr_iter}_PF']))
 
     def calculate_open_loop_value(self, y0, y_ss, duration, tr):
@@ -1035,8 +1041,8 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
 
     def update_target_value(self, value):
 
-        x = [self.param[self.region]['V1'], self.param[self.region]['V2'],
-             self.param[self.region]['V3'], self.param[self.region]['V4']]
+        x = [self.param[self.region]['Vv1'], self.param[self.region]['Vv2'],
+             self.param[self.region]['Vv3'], self.param[self.region]['Vv4']]
         y = [self.param[self.region]['Q1'], self.param[self.region]['Q2'],
              self.param[self.region]['Q3'], self.param[self.region]['Q4']]
         q_value = float(np.interp(value, x, y))
