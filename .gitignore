@@ -136,4 +136,5 @@ dmypy.json
 !.gitignore
 !Scripts/*.py
 !Suites/*.ste
+!Tests/*.tst
 !Lib/svpelab/pAus4777.py

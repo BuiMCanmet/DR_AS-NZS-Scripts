@@ -1,10 +1,10 @@
-<suite globals="True" name="VV">
+<suite globals="True" name="VW">
   <members>
-    <member name="VV_AusA.tst" />
-    <member name="VV_AusB.tst" />
-    <member name="VV_AusC.tst" />
-    <member name="VV_MANUAL.tst" />
-    <member name="VV_NZ.tst" />
+    <member name="VW_AusA.tst" />
+    <member name="VW_AusB.tst" />
+    <member name="VW_AusC.tst" />
+    <member name="VW_MANUAL.tst" />
+    <member name="VW_NZ.tst" />
   </members>
   <params>
     <param name="der.manual.slave_id" type="int">1</param>
