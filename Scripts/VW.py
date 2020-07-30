@@ -181,8 +181,8 @@ def Combo_vw_vv_mode(vw_curves):
                 # Activate volt-watt function with following parameters
                 # SunSpec convention is to use percentages for V and P points.
                 vw_curve_params = {
-                    'v': [(vw_pairs['VW1'] / v_nom) * 100,
-                          (vw_pairs['VW2'] / v_nom) * 100],
+                    'v': [(vw_pairs['Vw1'] / v_nom) * 100,
+                          (vw_pairs['Vw2'] / v_nom) * 100],
                     'w': [(vw_pairs['P1'] / s_rated) * 100,
                           (vw_pairs['P2'] / s_rated) * 100]
                 }
@@ -253,9 +253,10 @@ def Combo_vw_vv_mode(vw_curves):
                     if grid is not None:
                         grid.voltage(v_step)
 
-                    VoltVar.record_timeresponse(daq=daq, step_value=v_step)
-                    VoltVar.evaluate_criterias(daq=daq)
-                    result_summary.write(VoltVar.write_rslt_sum())
+                    VoltWatt.record_timeresponse(daq=daq, step_value=v_step)
+                    VoltWatt.evaluate_criterias(daq=daq)
+                    VoltWatt.evaluate_criterias(daq)
+                    result_summary.write(VoltWatt.write_rslt_sum())
 
             """
             (o) Summarize results in a table from initial value to final voltage value showing voltage,
