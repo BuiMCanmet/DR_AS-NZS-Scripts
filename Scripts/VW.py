@@ -56,7 +56,7 @@ F = 'F'
 P = 'P'
 Q = 'Q'
 
-def Combo_vv_vw_mode(vv_curves):
+def Combo_vw_vv_mode(vw_curves):
 
     result = script.RESULT_FAIL
     daq = None
@@ -84,7 +84,7 @@ def Combo_vv_vw_mode(vv_curves):
         phases = ts.param_value('eut.phases')
 
         commencement_time = ts.param_value('vv.commencement_time')
-        vv_response_time = ts.param_value('vv.completion_time')
+        vw_response_time = ts.param_value('vv.completion_time')
 
         """
         A separate module has been create for the 1547.1 and the DR_AS_NZS_4777.2 Standard
@@ -148,15 +148,15 @@ def Combo_vv_vw_mode(vv_curves):
         '''
         Repeat the test for each regions curves (Australia A, Australia B, Australia C, New Zealand and Allowed range)
         '''
-        ts.log(f'curves={vv_curves}')
-        for vv_curve in vv_curves:
-            ts.log(f'curves={vv_curve}')
-            ts.log(f'Starting test with characteristic curve {vv_curve}')
-            VoltVar.reset_curve(vv_curve)
-            VoltVar.reset_time_settings(tr=vv_response_time, number_tr=2)
-            vv_pairs = VoltVar.get_params(region=vv_curve)
-            vw_pairs = VoltWatt.get_params(region=vv_curve)
-            ts.log_debug(f'volt-var_pairs:{vv_pairs}')
+        #ts.log(f'curves={vw_curves}')
+        for vw_curve in vw_curves:
+            #ts.log(f'curves={vw_curve}')
+            ts.log(f'Starting test with characteristic curve {vw_curve}')
+            VoltVar.reset_curve(vw_curve)
+            VoltVar.reset_time_settings(tr=vw_response_time, number_tr=2)
+            vv_pairs = VoltVar.get_params(region=vw_curve)
+            vw_pairs = VoltWatt.get_params(region=vw_curve)
+            ts.log_debug(f'volt-var_pairs:{vw_pairs}')
             ts.log_debug(f'volt-watt_pairs:{vw_pairs}')
 
             '''
@@ -172,22 +172,22 @@ def Combo_vv_vw_mode(vv_curves):
                     'var': [(vv_pairs['Q1'] / s_rated) * 100, (vv_pairs['Q2'] / s_rated) * 100,
                             (vv_pairs['Q3'] / s_rated) * 100, (vv_pairs['Q4'] / s_rated) * 100],
                     'vref': round(v_nom, 2),
-                    'RmpPtTms': vv_response_time
+                    'RmpPtTms': vw_response_time
                 }
                 ts.log_debug(f'Sending Volt-Var points: {vv_curve_params}')
-                eut.volt_var(params={'Ena': True, 'ACTCRV': vv_curve, 'curve': vv_curve_params})
+                eut.volt_var(params={'Ena': True, 'ACTCRV': vw_curve, 'curve': vv_curve_params})
                 ts.log_debug(f'Initial EUT Volt-Var settings are {eut.volt_var()}')
 
                 # Activate volt-watt function with following parameters
                 # SunSpec convention is to use percentages for V and P points.
-                vv_curve_params = {
+                vw_curve_params = {
                     'v': [(vw_pairs['Vw1'] / v_nom) * 100,
                           (vw_pairs['Vw2'] / v_nom) * 100],
                     'w': [(vw_pairs['P1'] / s_rated) * 100,
                           (vw_pairs['P2'] / s_rated) * 100]
                 }
-                ts.log_debug(f'Sending Volt-Watt points: {vv_curve_params}')
-                eut.volt_watt(params={'Ena': True, 'ACTCRV': vv_curve, 'curve': vv_curve_params})
+                ts.log_debug(f'Sending Volt-Watt points: {vw_curve_params}')
+                eut.volt_watt(params={'Ena': True, 'ACTCRV': vw_curve, 'curve': vw_curve_params})
                 ts.log_debug(f'Initial EUT Volt-Watt settings are {eut.volt_watt()}')
             """
              (b) Set the grid source equal to the grid test voltage. Vary the energy source until the a.c. output
@@ -210,13 +210,13 @@ def Combo_vv_vw_mode(vv_curves):
             VoltVar.set_step_label(starting_label='C')
 
             # step C
-            v_steps_dict[VoltVar.get_step_label()] = vv_pairs['Vv3']
+            v_steps_dict[VoltVar.get_step_label()] = vw_pairs['Vv3']
             # step DE 1 to 5
 
-            delta_v4_v3_step = (vv_pairs['Vv4'] - vv_pairs['Vv3'])/5.0
-            delta_v2_v1_step = (vv_pairs['Vv2'] - vv_pairs['Vv1'])/5.0
+            delta_v4_v3_step = (vw_pairs['Vv4'] - vw_pairs['Vv3'])/5.0
+            delta_v2_v1_step = (vw_pairs['Vv2'] - vw_pairs['Vv1'])/5.0
 
-            voltage = vv_pairs['Vv3']
+            voltage = vw_pairs['Vv3']
             for i in range(0, 6):
                 v_steps_dict[VoltVar.get_step_label()] = round(voltage + i*delta_v4_v3_step, 2)
 
@@ -224,7 +224,7 @@ def Combo_vv_vw_mode(vv_curves):
             for i in range(0, 6):
                 v_steps_dict[VoltVar.get_step_label()] = round(voltage - i*delta_v4_v3_step, 2)
 
-            voltage = vv_pairs['Vv2']
+            voltage = vw_pairs['Vv2']
             # step H
             for i in range(0, 6):
                 # step IJ 1 to 5
@@ -237,7 +237,7 @@ def Combo_vv_vw_mode(vv_curves):
 
             ts.log_debug(v_steps_dict)
 
-            dataset_filename = f'vv_vw_{vv_curve}'
+            dataset_filename = f'vw_vv_{vw_curve}'
             VoltVar.reset_filename(filename=dataset_filename)
             # Start the data acquisition systems
             daq.data_capture(True)
@@ -253,9 +253,10 @@ def Combo_vv_vw_mode(vv_curves):
                     if grid is not None:
                         grid.voltage(v_step)
 
-                    VoltVar.record_timeresponse(daq=daq, step_value=v_step)
-                    VoltVar.evaluate_criterias(daq)
-                    result_summary.write(VoltVar.write_rslt_sum())
+                    VoltWatt.record_timeresponse(daq=daq, step_value=v_step)
+                    VoltWatt.evaluate_criterias(daq=daq)
+                    VoltWatt.evaluate_criterias(daq)
+                    result_summary.write(VoltWatt.write_rslt_sum())
 
             """
             (o) Summarize results in a table from initial value to final voltage value showing voltage,
@@ -325,25 +326,25 @@ def test_run():
         Test Configuration
         """
         # list of active tests
-        vv_curves = []
-        #vv_response_time = [1, 1, 1, 1]
+        vw_curves = []
+        #vw_response_time = [1, 1, 1, 1]
 
         # Normal combined volt-var volt-watt test (Section 5.14.4)
 
         v_nom = ts.param_value('eut.v_nom')
         if ts.param_value('vv.test_AA') == 'Enabled':
-            vv_curves.append('Australia A')
+            vw_curves.append('Australia A')
         if ts.param_value('vv.test_AB') == 'Enabled':
-            vv_curves.append('Australia B')
+            vw_curves.append('Australia B')
         if ts.param_value('vv.test_AC') == 'Enabled':
-            vv_curves.append('Australia C')
+            vw_curves.append('Australia C')
         if ts.param_value('vv.test_NZ') == 'Enabled':
-            vv_curves.append('New Zealand')
+            vw_curves.append('New Zealand')
         if ts.param_value('vv.test_AR') == 'Enabled':
-            vv_curves.append(5)
+            vw_curves.append(5)
             #TODO TEST_AR to be implemented
         if mode == 'Volt-Watt':
-            result = Combo_vv_vw_mode(vv_curves=vv_curves)
+            result = Combo_vw_vv_mode(vw_curves=vw_curves)
 
     except script.ScriptFail as e:
         reason = str(e)
