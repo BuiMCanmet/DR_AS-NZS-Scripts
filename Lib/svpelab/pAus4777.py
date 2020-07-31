@@ -154,7 +154,7 @@ class UtilParameters:
         self.region = ''
         self.filename = None
 
-    def reset_curve(self, region='Australia_A'):
+    def reset_curve(self, region='AA'):
         self.region = region
         self.ts.log_debug(f'P1547 Librairy curve has been set {region}')
 
@@ -164,6 +164,7 @@ class UtilParameters:
 
     def reset_filename(self, filename):
         self.filename = filename
+        self.ts.log_debug(f'P1547 Librairy filename has been set to {filename}')
 
     def set_step_label(self, starting_label=None):
         """
@@ -852,7 +853,7 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
 
     def set_params(self):
 
-        self.param['Australia_A'] = {
+        self.param['AA'] = {
             'Vv1': round((207./230.) * self.v_nom, 2),
             'Vv2': round((220./230.) * self.v_nom, 2),
             'Vv3': round((240./230.) * self.v_nom, 2),
@@ -863,7 +864,7 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'Q4': round(self.s_rated * -0.60, 2)
         }
 
-        self.param['Australia_B'] = {
+        self.param['AB'] = {
             'Vv1': round((205./230.) * self.v_nom, 2),
             'Vv2': round((220./230.) * self.v_nom, 2),
             'Vv3': round((235./230.) * self.v_nom, 2),
@@ -874,7 +875,7 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'Q4': round(self.s_rated * -0.4, 2)
         }
 
-        self.param['Australia_C'] = {
+        self.param['AC'] = {
             'Vv1': round((215./230.) * self.v_nom, 2),
             'Vv2': round((230./230.) * self.v_nom, 2),
             'Vv3': round((240./230.) * self.v_nom, 2),
@@ -885,7 +886,7 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'Q4': round(self.s_rated * -0.6, 2)
         }
 
-        self.param['New_Zealand'] = {
+        self.param['NZ'] = {
             'Vv1': round((215./230.) * self.v_nom, 2),
             'Vv2': round((230./230.) * self.v_nom, 2),
             'Vv3': round((240./230.) * self.v_nom, 2),
@@ -945,25 +946,25 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
         # self.set_imbalance_config()
 
     def set_params(self):
-        self.param['Australia_A'] = {
+        self.param['AA'] = {
             'Vw1': round((256./230.) * self.v_nom, 2),
             'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
-        self.param['Australia_B'] = {
+        self.param['AB'] = {
             'Vw1': round((250./230.) * self.v_nom, 2),
             'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
-        self.param['Australia_C'] = {
+        self.param['AC'] = {
             'Vw1': round((253./230.) * self.v_nom, 2),
             'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
-        self.param['New_Zealand'] = {
+        self.param['NZ'] = {
             'Vw1': round((241./230.) * self.v_nom, 2),
             'Vw2': round((246./230.)* self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
@@ -977,22 +978,17 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'P1': round(self.p_rated, 2)
         }
         """
-    def create_dict_steps(self, mode, secondary_pairs):
+    def create_dict_steps(self, mode=None, secondary_pairs=None):
 
         # Construct the v_steps_dict from step c to step n
         v_steps_dict = collections.OrderedDict()
 
         vw_pairs=self.get_params(self.region)
         self.ts.log(f'vw_pairs_lib={vw_pairs}')
-        self.set_step_label(starting_label='C')
-        self.ts.log(f'mode={mode} and {mode == "Volt-Var"}')
 
         if mode == 'Volt-Var':
             vv_pairs = secondary_pairs
             self.ts.log(f'vw_pairs_lib={vv_pairs}')
-
-
-            #v_steps_dict[self.get_step_label()] = vv_pairs['Vv3']
 
             delta_vv4_vv3_step = (vv_pairs['Vv4'] - vv_pairs['Vv3']) / 5.0
             delta_vv2_vv1_step = (vv_pairs['Vv2'] - vv_pairs['Vv1']) / 5.0
@@ -1023,7 +1019,7 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
                 v_steps_dict[f'Step_K_{i}'] = round(voltage, 2)
             v_steps_dict['Step_M'] = round(vw_pairs['Vw2'] - 1.)
 
-        elif mode is 'None':
+        else:
             delta_vw2_vw1_step = ((vw_pairs['Vw2']-1.0) - vw_pairs['Vw1']) / 5.0
             voltage = vw_pairs['Vw1']
             v_steps_dict['Step_C'] = voltage
@@ -1034,6 +1030,9 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
                 voltage -= delta_vw2_vw1_step
                 v_steps_dict[f'Step_F_{i}'] = round(voltage, 2)
             v_steps_dict[f'Step_H'] = vw_pairs['Vw2']-1.0
+
+            self.ts.log(f'v_step_dict={v_steps_dict}')
+
         return v_steps_dict
 
     def update_target_value(self, value):
