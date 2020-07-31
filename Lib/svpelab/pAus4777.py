@@ -941,11 +941,11 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
         CriteriaValidation.__init__(self)
         #if imbalance:
         #    ImbalanceComponent.__init__(self)
-        self.pairs = {}
+        self.vw_pairs = {}
         self.param = {}
         self.target_dict = []
         self.script_name = VW
-        self.script_complete_name = 'Volt-Var'
+        self.script_complete_name = 'Volt-Watt'
         self._config()
 
     def _config(self):
@@ -986,6 +986,65 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'P1': round(self.p_rated, 2)
         }
         """
+    def create_dict_steps(self, mode, secondary_pairs):
+
+        # Construct the v_steps_dict from step c to step n
+        v_steps_dict = collections.OrderedDict()
+
+        vw_pairs=self.get_params(self.region)
+        self.ts.log(f'vw_pairs_lib={vw_pairs}')
+        self.set_step_label(starting_label='C')
+        self.ts.log(f'mode={mode} and {mode == "Volt-Var"}')
+
+        if mode == 'Volt-Var':
+            vv_pairs = secondary_pairs
+            self.ts.log(f'vw_pairs_lib={vv_pairs}')
+
+
+            #v_steps_dict[self.get_step_label()] = vv_pairs['Vv3']
+
+            delta_vv4_vv3_step = (vv_pairs['Vv4'] - vv_pairs['Vv3']) / 5.0
+            delta_vv2_vv1_step = (vv_pairs['Vv2'] - vv_pairs['Vv1']) / 5.0
+
+            # step CDE 1 to 5
+            voltage = vv_pairs['Vv3']
+            v_steps_dict['Step_C'] = voltage
+            for i in range(1, 6):
+                voltage += delta_vv4_vv3_step
+                v_steps_dict[f'Step_D_{i}'] = round(voltage, 2)
+
+            # step FG 1 to 5
+            self.ts.log(f'voltage={voltage}')
+            for i in range(1, 6):
+                voltage -= delta_vv4_vv3_step
+                v_steps_dict[f'Step_F_{i}'] = round(voltage, 2)
+
+            voltage = vv_pairs['Vv2']
+            v_steps_dict['Step_H'] = voltage
+            # step H
+            for i in range(1, 6):
+                # step IJ 1 to 5
+                voltage -= delta_vv2_vv1_step
+                v_steps_dict[f'Step_I_{i}'] = round(voltage, 2)
+            for i in range(1, 6):
+                # step KL 1 to 5
+                voltage += delta_vv2_vv1_step
+                v_steps_dict[f'Step_K_{i}'] = round(voltage, 2)
+            v_steps_dict['Step_M'] = round(vw_pairs['Vw2'] - 1.)
+
+        elif mode is 'None':
+            delta_vw2_vw1_step = ((vw_pairs['Vw2']-1.0) - vw_pairs['Vw1']) / 5.0
+            voltage = vw_pairs['Vw1']
+            v_steps_dict['Step_C'] = voltage
+            for i in range(1, 6):
+                voltage += delta_vw2_vw1_step
+                v_steps_dict[f'Step_D_{i}'] = round(voltage, 2)
+            for i in range(1, 6):
+                voltage -= delta_vw2_vw1_step
+                v_steps_dict[f'Step_F_{i}'] = round(voltage, 2)
+            v_steps_dict[f'Step_H'] = vw_pairs['Vw2']-1.0
+        return v_steps_dict
+
 if __name__ == "__main__":
     pass
 
