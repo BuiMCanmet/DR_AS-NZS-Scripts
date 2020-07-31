@@ -88,14 +88,16 @@ def vw_combined_vv_mode(vw_curves):
         vw_response_time = ts.param_value('vv.completion_time')
 
         """
-        A separate module has been create for the 1547.1 and the DR_AS_NZS_4777.2 Standard
+        A separate module has been create for the DR_AS_NZS_4777.2 Standard
         """
         VoltVar = pAus4777.VoltVar(ts=ts)
-        ts.log_debug(f"1547.1 Library configured for {VoltVar.get_script_name()}")
         VoltWatt = pAus4777.VoltWatt(ts=ts)
+        ts.log_debug(f"AUS4777,2 Library configured for {VoltWatt.get_script_name()}")
+
 
         # result params
-        result_params = VoltVar.get_rslt_param_plot()
+        x_axis_specs = {'min': v_low * 0.9}
+        result_params = VoltWatt.get_rslt_param_plot(x_axis_specs=x_axis_specs)
         ts.log_debug(result_params)
 
         '''
@@ -112,7 +114,7 @@ def vw_combined_vv_mode(vw_curves):
         pv = pvsim.pvsim_init(ts)
 
         # DAS soft channels
-        das_points = VoltVar.get_sc_points()
+        das_points = VoltWatt.get_sc_points()
         # initialize data acquisition system
         daq = das.das_init(ts, sc_points=das_points['sc'])
 
@@ -144,7 +146,7 @@ def vw_combined_vv_mode(vw_curves):
         result_summary_filename = 'result_summary.csv'
         result_summary = open(ts.result_file_path(result_summary_filename), 'a+')
         ts.result_file(result_summary_filename)
-        result_summary.write(VoltVar.get_rslt_sum_col_name())
+        result_summary.write(VoltWatt.get_rslt_sum_col_name())
 
         '''
         Repeat the test for each regions curves (Australia A, Australia B, Australia C, New Zealand and Allowed range)
@@ -247,7 +249,7 @@ def vw_combined_vv_mode(vw_curves):
                     if grid is not None:
                         grid.voltage(v_step)
                 else:
-                    VoltVar.start(daq=daq, step_label=step_label)
+                    VoltWatt.start(daq=daq, step_label=step_label)
 
                     if grid is not None:
                         grid.voltage(v_step)
@@ -333,13 +335,13 @@ def test_run():
 
         v_nom = ts.param_value('eut.v_nom')
         if ts.param_value('vv.test_AA') == 'Enabled':
-            vw_curves.append('Australia A')
+            vw_curves.append('Australia_A')
         if ts.param_value('vv.test_AB') == 'Enabled':
-            vw_curves.append('Australia B')
+            vw_curves.append('Australia_B')
         if ts.param_value('vv.test_AC') == 'Enabled':
-            vw_curves.append('Australia C')
+            vw_curves.append('Australia_C')
         if ts.param_value('vv.test_NZ') == 'Enabled':
-            vw_curves.append('New Zealand')
+            vw_curves.append('New_Zealand')
         if ts.param_value('vv.test_AR') == 'Enabled':
             vw_curves.append(5)
             #TODO TEST_AR to be implemented

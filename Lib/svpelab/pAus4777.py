@@ -154,7 +154,7 @@ class UtilParameters:
         self.region = ''
         self.filename = None
 
-    def reset_curve(self, region='Australia A'):
+    def reset_curve(self, region='Australia_A'):
         self.region = region
         self.ts.log_debug(f'P1547 Librairy curve has been set {region}')
 
@@ -353,6 +353,9 @@ class DataLogging:
 
 
         # Time response criteria will take last placed value of Y variables
+        for y in ys:
+            row_data.append(f'{y}_BEFORE_RCT_1S')
+            row_data.append(f'{y}_BEFORE_RCT_10s')
         """
         if self.criteria_mode[0]:  # transient response pass/fail
             row_data.append('90%_BY_TR=1')
@@ -378,26 +381,29 @@ class DataLogging:
 
         self.rslt_sum_col_name = ','.join(row_data) + '\n'
 
-    def get_rslt_param_plot(self):
+    def get_rslt_param_plot(self, x_axis_specs=None):
         """
         This getters function creates and returns all the predefined columns for the plotting process
         :return: result_params
         """
+        if x_axis_specs is None:
+            x_axis_specs = {'min': 'Not congigured'}
+
         y_variables = self.y_criteria
-        y2_variables = self.x_criteria
+        x_variables = self.x_criteria
 
         # For VV, VW and FW
         y_points = []
-        y2_points = []
+        x_points = []
         y_title = []
-        y2_title = []
+        x_title = []
 
-        #y_points = '%s_TARGET,%s_MEAS' % (y, y)
-        #y2_points = '%s_TARGET,%s_MEAS' % (y2, y2)
+        # y_points = '%s_TARGET,%s_MEAS' % (y, y)
+        # y2_points = '%s_TARGET,%s_MEAS' % (y2, y2)
 
         for y in y_variables:
             self.ts.log_debug('y_temp: %s' % y)
-            #y_temp = self.get_measurement_label('%s' % y)
+            # y_temp = self.get_measurement_label('%s' % y)
             y_temp = '{}'.format(','.join(str(x) for x in self.get_measurement_label('%s' % y)))
             y_title.append(FULL_NAME[y])
             y_points.append(y_temp)
@@ -405,22 +411,21 @@ class DataLogging:
         y_points = ','.join(y_points)
         y_title = ','.join(y_title)
 
-        for y2 in y2_variables:
-            self.ts.log_debug('y2_variable for result: %s' % y2)
-            y2_temp = '{}'.format(','.join(str(x) for x in self.get_measurement_label('%s' % y2)))
-            y2_title.append(FULL_NAME[y2])
-            y2_points.append(y2_temp)
-        y2_points = ','.join(y2_points)
-        y2_title = ','.join(y2_title)
+        for x in x_variables:
+            self.ts.log_debug('x_variable for result: %s' % x)
+            x_temp = '{}'.format(','.join(str(x) for x in self.get_measurement_label('%s' % x)))
+            x_title.append(FULL_NAME[x])
+            x_points.append(x_temp)
+        x_points = ','.join(x_points)
+        x_title = ','.join(x_title)
 
         result_params = {
             'plot.title': 'title_name',
-            'plot.x.title': 'Time (sec)',
-            'plot.x.points': 'TIME',
+            'plot.x.title': x_title,
+            'plot.x.points': x_points,
+            'plot.x.axis.min': x_axis_specs['min'],
             'plot.y.points': y_points,
             'plot.y.title': y_title,
-            'plot.y2.points': y2_points,
-            'plot.y2.title': y2_title,
             'plot.%s_TARGET.min_error' % y: '%s_TARGET_MIN' % y,
             'plot.%s_TARGET.max_error' % y: '%s_TARGET_MAX' % y,
         }
@@ -459,14 +464,20 @@ class DataLogging:
         last_iter = self.tr_value['LAST_ITER']
         row_data = []
 
-
         # Time response criteria will take last placed value of Y variables
+        for y in ys:
+            row_data.append(str(self.tr_value[f'{y}_TR_{self.tr_value["FIRST_ITER"]}_PF']))
+            row_data.append(str(self.tr_value[f'{y}_TR_{self.tr_value["LAST_ITER"]}_PF']))
+
+        """
+        
         if self.criteria_mode[0]:
             row_data.append(str(self.tr_value['TR_90_%_PF']))
         if self.criteria_mode[1]:
             row_data.append(str(self.tr_value['%s_TR_%s_PF' % (ys[-1], first_iter)]))
         if self.criteria_mode[2]:
             row_data.append(str(self.tr_value['%s_TR_%s_PF' % (ys[-1], last_iter)]))
+        """
 
         # Default measured values are V, P and Q (F can be added) refer to set_meas_variable function
         for meas_value in self.meas_values:
@@ -659,7 +670,7 @@ class CriteriaValidation:
         for y in self.y_criteria:
             y_tol = self.s_rated * 0.04
             y_initial = self.initial_value[y]["y_value"]
-            y_final = self.tr_value[f'{y}_TR_TARG_{tr_iter}']
+            y_final = self.tr_value[f'{y}_TR_TARG_{self.tr_value["LAST_ITER"]}']
             y_Tcom_1s = self.tr_value[f'{y}_TR_{self.tr_value["FIRST_ITER"]}']
             y_Tcom_10s = self.tr_value[f'{y}_TR_{self.tr_value["LAST_ITER"]}']
 
@@ -670,9 +681,9 @@ class CriteriaValidation:
             else:
                 self.tr_value[f'{y}_TR_{self.tr_value["FIRST_ITER"]}_PF'] = 'Fail'
 
-            self.ts.log.debug(f' Response commencement time 1.2s for {y}, evaluation : '
+            self.ts.log_debug(f' Response commencement time 1.2s for {y}, evaluation : '
                               f'|{y_Tcom_1s:.2f} - {y_initial:.2f}| >='
-                              f' {2*y_tol:.2f} [%.2f]' % (self.tr_value[f"{y}_TR_{self.tr_value['FIRST_ITER']}_PF"]))
+                              f' {2*y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_TR_{self.tr_value['FIRST_ITER']}_PF"]))
 
             # pass/fail assessment for the response completion time
             if abs(y_final - y_Tcom_10s) <= 2*y_tol:
@@ -680,9 +691,9 @@ class CriteriaValidation:
             else:
                 self.tr_value[f'{y}_TR_{self.tr_value["LAST_ITER"]}_PF'] = 'Fail'
 
-            self.ts.log.debug(f' Response completion time 10.2s for {y}, evaluation : '
+            self.ts.log_debug(f' Response completion time 10.2s for {y}, evaluation : '
                               f'|{y_final:.2f} - {y_Tcom_1s:.2f}| <='
-                              f' {2 * y_tol:.2f} [%.2f]' % (self.tr_value[f"{y}_TR_{self.tr_value['LAST_ITER']}_PF"]))
+                              f' {2 * y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_TR_{self.tr_value['LAST_ITER']}_PF"]))
 
 class ImbalanceComponent:
 
@@ -862,7 +873,7 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
 
     def set_params(self):
 
-        self.param['Australia A'] = {
+        self.param['Australia_A'] = {
             'Vv1': round((207./230.) * self.v_nom, 2),
             'Vv2': round((220./230.) * self.v_nom, 2),
             'Vv3': round((240./230.) * self.v_nom, 2),
@@ -873,7 +884,7 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'Q4': round(self.s_rated * -0.60, 2)
         }
 
-        self.param['Australia B'] = {
+        self.param['Australia_B'] = {
             'Vv1': round((205./230.) * self.v_nom, 2),
             'Vv2': round((220./230.) * self.v_nom, 2),
             'Vv3': round((235./230.) * self.v_nom, 2),
@@ -884,7 +895,7 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'Q4': round(self.s_rated * -0.4, 2)
         }
 
-        self.param['Australia C'] = {
+        self.param['Australia_C'] = {
             'Vv1': round((215./230.) * self.v_nom, 2),
             'Vv2': round((230./230.) * self.v_nom, 2),
             'Vv3': round((240./230.) * self.v_nom, 2),
@@ -895,7 +906,7 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'Q4': round(self.s_rated * -0.6, 2)
         }
 
-        self.param['New Zealand'] = {
+        self.param['New_Zealand'] = {
             'Vv1': round((215./230.) * self.v_nom, 2),
             'Vv2': round((230./230.) * self.v_nom, 2),
             'Vv3': round((240./230.) * self.v_nom, 2),
@@ -908,8 +919,8 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
 
     def update_target_value(self, value):
 
-        x = [self.param[self.region]['V1'], self.param[self.region]['V2'],
-             self.param[self.region]['V3'], self.param[self.region]['V4']]
+        x = [self.param[self.region]['Vv1'], self.param[self.region]['Vv2'],
+             self.param[self.region]['Vv3'], self.param[self.region]['Vv4']]
         y = [self.param[self.region]['Q1'], self.param[self.region]['Q2'],
              self.param[self.region]['Q3'], self.param[self.region]['Q4']]
         q_value = float(np.interp(value, x, y))
@@ -937,10 +948,11 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
         EutParameters.__init__(self, ts)
         UtilParameters.__init__(self)
         #TODO verify this section for australian standard
-        DataLogging.__init__(self, meas_values=['V', 'Q', 'P'], x_criteria=['V'], y_criteria=['Q'])
+        DataLogging.__init__(self, meas_values=['V', 'Q', 'P'], x_criteria=['V'], y_criteria=['P'])
         CriteriaValidation.__init__(self)
         #if imbalance:
         #    ImbalanceComponent.__init__(self)
+        self.pairs = {}
         self.vw_pairs = {}
         self.param = {}
         self.target_dict = []
@@ -954,25 +966,25 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
         # self.set_imbalance_config()
 
     def set_params(self):
-        self.param['Australia A'] = {
+        self.param['Australia_A'] = {
             'Vw1': round((256./230.) * self.v_nom, 2),
             'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
-        self.param['Australia B'] = {
+        self.param['Australia_B'] = {
             'Vw1': round((250./230.) * self.v_nom, 2),
             'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
-        self.param['Australia C'] = {
+        self.param['Australia_C'] = {
             'Vw1': round((253./230.) * self.v_nom, 2),
             'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
-        self.param['New Zealand'] = {
+        self.param['New_Zealand'] = {
             'Vw1': round((241./230.) * self.v_nom, 2),
             'Vw2': round((246./230.)* self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
@@ -1044,6 +1056,22 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
                 v_steps_dict[f'Step_F_{i}'] = round(voltage, 2)
             v_steps_dict[f'Step_H'] = vw_pairs['Vw2']-1.0
         return v_steps_dict
+
+    def update_target_value(self, value):
+
+        x = [self.param[self.region]['Vw1'], self.param[self.region]['Vw2']]
+        y = [self.param[self.region]['P1'], self.param[self.region]['P2']]
+        q_value = float(np.interp(value, x, y))
+        q_value *= self.pwr
+        return round(q_value, 1)
+
+    def calculate_min_max_values(self, daq, data):
+        y = 'Q'
+        v_meas = self.get_measurement_total(data=data, type_meas='V', log=False)
+        target_min = self.update_target_value(v_meas + self.MRA['V'] * 1.5) - (self.MRA['P'] * 1.5)
+        target_max = self.update_target_value(v_meas - self.MRA['V'] * 1.5) + (self.MRA['P'] * 1.5)
+
+        return target_min, target_max
 
 if __name__ == "__main__":
     pass
