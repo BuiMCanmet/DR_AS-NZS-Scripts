@@ -357,14 +357,6 @@ class DataLogging:
         for y in ys:
             row_data.append(f'{y}_BEFORE_RCT_1S')
             row_data.append(f'{y}_BEFORE_RCT_10s')
-        """
-        if self.criteria_mode[0]:  # transient response pass/fail
-            row_data.append('90%_BY_TR=1')
-        if self.criteria_mode[1]:
-            row_data.append('WITHIN_BOUNDS_BY_TR=1')
-        if self.criteria_mode[2]:  # steady-state accuracy
-            row_data.append('WITHIN_BOUNDS_BY_LAST_TR')
-        """
 
         for meas_value in self.meas_values:
             row_data.append('%s_MEAS' % meas_value)
@@ -461,36 +453,26 @@ class DataLogging:
 
         xs = self.x_criteria
         ys = self.y_criteria
-        first_iter = self.tr_value['FIRST_ITER']
-        last_iter = self.tr_value['LAST_ITER']
+        last_iter = 2
         row_data = []
 
         # Time response criteria will take last placed value of Y variables
         for y in ys:
-            row_data.append(str(self.tr_value[f'{y}_TR_{self.tr_value["FIRST_ITER"]}_PF']))
-            row_data.append(str(self.tr_value[f'{y}_TR_{self.tr_value["LAST_ITER"]}_PF']))
+            row_data.append(str(self.tr_value[f'{y}_T_COM_{1}_PF']))
+            row_data.append(str(self.tr_value[f'{y}_T_COM_{2}_PF']))
 
-        """
-        
-        if self.criteria_mode[0]:
-            row_data.append(str(self.tr_value['TR_90_%_PF']))
-        if self.criteria_mode[1]:
-            row_data.append(str(self.tr_value['%s_TR_%s_PF' % (ys[-1], first_iter)]))
-        if self.criteria_mode[2]:
-            row_data.append(str(self.tr_value['%s_TR_%s_PF' % (ys[-1], last_iter)]))
-        """
 
         # Default measured values are V, P and Q (F can be added) refer to set_meas_variable function
         for meas_value in self.meas_values:
-            row_data.append(str(self.tr_value['%s_TR_%d' % (meas_value, last_iter)]))
+            row_data.append(str(self.tr_value['%s_T_COM_%d' % (meas_value, last_iter)]))
             # Variables needed for variations
             if meas_value in xs:
-                row_data.append(str(self.tr_value['%s_TR_TARG_%d' % (meas_value, last_iter)]))
+                row_data.append(str(self.tr_value['%s_T_COM_TARG_%d' % (meas_value, last_iter)]))
             # Variables needed for criteria verifications with min max passfail
             if meas_value in ys:
-                row_data.append(str(self.tr_value['%s_TR_TARG_%s' % (meas_value, last_iter)]))
-                row_data.append(str(self.tr_value['%s_TR_%s_MIN' % (meas_value, last_iter)]))
-                row_data.append(str(self.tr_value['%s_TR_%s_MAX' % (meas_value, last_iter)]))
+                row_data.append(str(self.tr_value['%s_T_COM_TARG_%s' % (meas_value, last_iter)]))
+                row_data.append(str(self.tr_value['%s_T_COM_%s_MIN' % (meas_value, last_iter)]))
+                row_data.append(str(self.tr_value['%s_T_COM_%s_MAX' % (meas_value, last_iter)]))
 
         row_data.append(self.current_step_label)
         row_data.append(str(self.filename))
@@ -514,9 +496,9 @@ class DataLogging:
 
         self.initial_value['timestamp'] = datetime.now()
         self.current_step_label = step_label
+        daq.sc['EVENT'] = self.current_step_label + '_INIT'
         daq.data_sample()
         data = daq.data_capture_read()
-        daq.sc['event'] = self.current_step_label
         if isinstance(self.x_criteria, list):
             for xs in self.x_criteria:
                 self.initial_value[xs] = {'x_value': self.get_measurement_total(data=data, type_meas=xs, log=False)}
@@ -553,20 +535,19 @@ class DataLogging:
         x = self.x_criteria
         y = self.y_criteria
         #self.tr = tr
+        T_Com_names = {1: '1S', 2: '10S', 3: '20S'}
+        tr_list = []
 
-        first_tr = self.initial_value['timestamp'] + timedelta(seconds=self.tr)
-        tr_list = [first_tr]
-
-        for i in range(self.n_tr - 1):
-            tr_list.append(tr_list[i] + timedelta(seconds=self.tr))
+        for i in range(self.n_tr):
+            tr_list.append(self.initial_value['timestamp'] + timedelta(seconds=self.tr[i]))
             for meas_value in self.meas_values:
-                self.tr_value['%s_TR_%s' % (meas_value, i)] = None
+                self.tr_value['%s_T_Com_%s' % (meas_value, i)] = None
                 if meas_value in x:
-                    self.tr_value['%s_TR_TARG_%s' % (meas_value, i)] = None
+                    self.tr_value['%s_T_COM_TARG_%s' % (meas_value, i)] = None
                 elif meas_value in y:
-                    self.tr_value['%s_TR_TARG_%s' % (meas_value, i)] = None
-                    self.tr_value['%s_TR_%s_MIN' % (meas_value, i)] = None
-                    self.tr_value['%s_TR_%s_MAX' % (meas_value, i)] = None
+                    self.tr_value['%s_T_COM_TARG_%s' % (meas_value, i)] = None
+                    self.tr_value['%s_T_COM_%s_MIN' % (meas_value, i)] = None
+                    self.tr_value['%s_T_COM_%s_MAX' % (meas_value, i)] = None
         tr_iter = 1
         for tr_ in tr_list:
             #self.ts.log_debug(f'tr_={tr_list}')
@@ -576,9 +557,9 @@ class DataLogging:
                 self.ts.log('Waiting %s seconds to get the next Tr data for analysis...' %
                             time_to_sleep.total_seconds())
                 self.ts.sleep(time_to_sleep.total_seconds())
+            daq.sc['EVENT'] = "{0}_T_COM_{1}".format(self.current_step_label, T_Com_names[tr_iter])
             daq.data_sample()  # sample new data
             data = daq.data_capture_read()  # Return dataset created from last data capture
-            daq.sc['EVENT'] = "{0}_TR_{1}".format(self.current_step_label, tr_iter)
 
             # update daq.sc values for Y_TARGET, Y_TARGET_MIN, and Y_TARGET_MAX
 
@@ -586,20 +567,20 @@ class DataLogging:
 
             for meas_value in self.meas_values:
                 try:
-                    self.tr_value['%s_TR_%s' % (meas_value, tr_iter)] = daq.sc['%s_MEAS' % meas_value]
+                    self.tr_value['%s_T_COM_%s' % (meas_value, tr_iter)] = daq.sc['%s_MEAS' % meas_value]
 
                     self.ts.log('Value %s: %s' % (meas_value, daq.sc['%s_MEAS' % meas_value]))
                     if meas_value in x:
                         daq.sc['%s_TARGET' % meas_value] = step_value
-                        self.tr_value['%s_TR_TARG_%s' % (meas_value, tr_iter)] = step_value
+                        self.tr_value['%s_T_COM_TARG_%s' % (meas_value, tr_iter)] = step_value
                         self.ts.log('X Value (%s) = %s' % (meas_value, daq.sc['%s_MEAS' % meas_value]))
                     elif meas_value in y:
                         daq.sc['%s_TARGET' % meas_value] = self.update_target_value(step_value)
                         daq.sc['%s_TARGET_MIN' % meas_value], daq.sc[
                             '%s_TARGET_MAX' % meas_value] = self.calculate_min_max_values(daq=daq, data=data)
-                        self.tr_value[f'{meas_value}_TR_TARG_{tr_iter}'] = daq.sc['%s_TARGET' % meas_value]
-                        self.tr_value[f'{meas_value}_TR_{tr_iter}_MIN'] = daq.sc['%s_TARGET_MIN' % meas_value]
-                        self.tr_value[f'{meas_value}_TR_{tr_iter}_MAX'] = daq.sc['%s_TARGET_MAX' % meas_value]
+                        self.tr_value[f'{meas_value}_T_COM_TARG_{tr_iter}'] = daq.sc['%s_TARGET' % meas_value]
+                        self.tr_value[f'{meas_value}_T_COM_{tr_iter}_MIN'] = daq.sc['%s_TARGET_MIN' % meas_value]
+                        self.tr_value[f'{meas_value}_T_COM_{tr_iter}_MAX'] = daq.sc['%s_TARGET_MAX' % meas_value]
                         self.ts.log('Y Value (%s) = %s. Pass/fail bounds = [%s, %s]' %
                                      (meas_value, daq.sc['%s_MEAS' % meas_value],
                                       daq.sc['%s_TARGET_MIN' % meas_value], daq.sc['%s_TARGET_MAX' % meas_value]))
@@ -608,10 +589,8 @@ class DataLogging:
 
             #self.tr_value[tr_iter]["timestamp"] = tr_
             self.tr_value[f'timestamp_{tr_iter}'] = tr_
-            self.tr_value['LAST_ITER'] = tr_iter
             tr_iter = tr_iter + 1
 
-        self.tr_value['FIRST_ITER'] = 1
 
         return self.tr_value
 
@@ -671,30 +650,30 @@ class CriteriaValidation:
         for y in self.y_criteria:
             y_tol = self.s_rated * 0.04
             y_initial = self.initial_value[y]["y_value"]
-            y_final = self.tr_value[f'{y}_TR_TARG_{self.tr_value["LAST_ITER"]}']
-            y_Tcom_1s = self.tr_value[f'{y}_TR_{self.tr_value["FIRST_ITER"]}']
-            y_Tcom_10s = self.tr_value[f'{y}_TR_{self.tr_value["LAST_ITER"]}']
+            y_final = self.tr_value[f'{y}_T_COM_TARG_{2}']
+            y_Tcom_1s = self.tr_value[f'{y}_T_COM_{1}']
+            y_Tcom_10s = self.tr_value[f'{y}_T_COM_{2}']
 
 
             # pass/fail assessment for the response commencement time
             if abs(y_Tcom_1s - y_initial) >= 2*y_tol:
-                self.tr_value[f'{y}_TR_{self.tr_value["FIRST_ITER"]}_PF'] = 'Pass'
+                self.tr_value[f'{y}_T_COM_{1}_PF'] = 'Pass'
             else:
-                self.tr_value[f'{y}_TR_{self.tr_value["FIRST_ITER"]}_PF'] = 'Fail'
+                self.tr_value[f'{y}_T_COM_{1}_PF'] = 'Fail'
 
             self.ts.log_debug(f' Response commencement time 1.2s for {y}, evaluation : '
                               f'|{y_Tcom_1s:.2f} - {y_initial:.2f}| >='
-                              f' {2*y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_TR_{self.tr_value['FIRST_ITER']}_PF"]))
+                              f' {2*y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{1}_PF"]))
 
             # pass/fail assessment for the response completion time
             if abs(y_final - y_Tcom_10s) <= 2*y_tol:
-                self.tr_value[f'{y}_TR_{self.tr_value["LAST_ITER"]}_PF'] = 'Pass'
+                self.tr_value[f'{y}_T_COM_{2}_PF'] = 'Pass'
             else:
-                self.tr_value[f'{y}_TR_{self.tr_value["LAST_ITER"]}_PF'] = 'Fail'
+                self.tr_value[f'{y}_T_COM_{2}_PF'] = 'Fail'
 
             self.ts.log_debug(f' Response completion time 10.2s for {y}, evaluation : '
                               f'|{y_final:.2f} - {y_Tcom_1s:.2f}| <='
-                              f' {2 * y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_TR_{self.tr_value['LAST_ITER']}_PF"]))
+                              f' {2 * y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{2}_PF"]))
 
 class ImbalanceComponent:
 

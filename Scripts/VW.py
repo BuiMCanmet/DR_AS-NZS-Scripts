@@ -84,8 +84,9 @@ def vw_mode(vw_curves, mode=None):
         v_high = ts.param_value('eut.v_high')
         phases = ts.param_value('eut.phases')
 
-        commencement_time = ts.param_value('vv.commencement_time')
-        vw_response_time = ts.param_value('vv.completion_time')
+        vw_response_time = 0
+        vw_timing = [ts.param_value('vw.commencement_time'), ts.param_value('vw.completion_time'),
+                     ts.param_value('vw.step_time_period')]
 
         """
         A separate module has been create for the DR_AS_NZS_4777.2 Standard
@@ -156,7 +157,8 @@ def vw_mode(vw_curves, mode=None):
             #ts.log(f'curves={vw_curve}')
             ts.log(f'Starting test with characteristic curve {vw_curve}')
             VoltWatt.reset_curve(vw_curve)
-            VoltWatt.reset_time_settings(tr=vw_response_time, number_tr=2)
+            VoltWatt.reset_time_settings(tr=vw_timing, number_tr=3)
+            
             if mode == 'Volt-Var':
                 vv_pairs = VoltVar.get_params(region=vw_curve)
                 ts.log_debug(f'volt-var_pairs:{vv_pairs}')
@@ -300,7 +302,7 @@ def test_run():
         Configuration
         """
 
-        mode = ts.param_value('vv.mode')
+        mode = ts.param_value('vw.mode')
 
         """
         Test Configuration
@@ -312,6 +314,7 @@ def test_run():
         # Normal combined volt-var volt-watt test (Section 5.14.4)
 
         v_nom = ts.param_value('eut.v_nom')
+
         if ts.param_value('vv.test_AA') == 'Enabled':
             vw_curves.append('AA')
         if ts.param_value('vv.test_AB') == 'Enabled':
@@ -369,29 +372,30 @@ def run(test_script):
 
 info = script.ScriptInfo(name=os.path.basename(__file__), run=run, version='1.0.0')
 
-# vv test parameters
-info.param_group('vv', label='Test Parameters')
-info.param('vv.mode', label='Combining additional functions', default='None', values=['Volt-Var', 'None'])
-info.param('vv.test_AA', label='Australia A curve', default='Enabled', values=['Disabled', 'Enabled'])
-info.param('vv.test_AB', label='Australia B curve', default='Disabled', values=['Disabled', 'Enabled'])
-info.param('vv.test_AC', label='Australia C curve', default='Disabled', values=['Disabled', 'Enabled'])
-info.param('vv.test_NZ', label='New Zealand curve', default='Disabled', values=['Disabled', 'Enabled'])
-info.param('vv.test_AR', label='Allowed Range curve', default='Disabled', values=['Disabled', 'Enabled'])
-info.param('vv.commencement_time', label='Commencement time(s):', default=1.0)
-info.param('vv.completion_time', label='Completion time(s):', default=10.0)
+# vw test parameters
+info.param_group('vw', label='Test Parameters')
+info.param('vw.mode', label='Combining additional functions', default='None', values=['Volt-Var', 'None'])
+info.param('vw.test_AA', label='Australia A curve', default='Enabled', values=['Disabled', 'Enabled'])
+info.param('vw.test_AB', label='Australia B curve', default='Disabled', values=['Disabled', 'Enabled'])
+info.param('vw.test_AC', label='Australia C curve', default='Disabled', values=['Disabled', 'Enabled'])
+info.param('vw.test_NZ', label='New Zealand curve', default='Disabled', values=['Disabled', 'Enabled'])
+info.param('vw.test_AR', label='Allowed Range curve', default='Disabled', values=['Disabled', 'Enabled'])
+info.param('vw.commencement_time', label='Commencement time(s):', default=1.2)
+info.param('vw.completion_time', label='Completion time(s):', default=10.2)
+info.param('vw.step_time_period', label='Step time period(s):', default=20.0)
 
-info.param('vv.test_AR_Vw1', label='Setting Vw1', default=250.,
-           active='vv.test_AR', active_value=['Enabled'])
-info.param('vv.test_AR_Vw2', label='Setting Vw2', default=260.,
-           active='vv.test_AR', active_value=['Enabled'])
-info.param('vv.test_AR_Vv1', label='Setting Vv1', default=200.,
-           active='vv.test_AR', active_value=['Enabled'])
-info.param('vv.test_AR_Vv2', label='Setting Vv2', default=220.,
-           active='vv.test_AR', active_value=['Enabled'])
-info.param('vv.test_AR_Vv3', label='Setting Vv3', default=240.,
-           active='vv.test_AR', active_value=['Enabled'])
-info.param('vv.test_AR_Vv4', label='Setting Vv4', default=260.,
-           active='vv.test_AR', active_value=['Enabled'])
+info.param('vw.test_AR_Vw1', label='Setting Vw1', default=250.,
+           active='vw.test_AR', active_value=['Enabled'])
+info.param('vw.test_AR_Vw2', label='Setting Vw2', default=260.,
+           active='vw.test_AR', active_value=['Enabled'])
+info.param('vw.test_AR_Vv1', label='Setting Vv1', default=200.,
+           active='vw.test_AR', active_value=['Enabled'])
+info.param('vw.test_AR_Vv2', label='Setting Vv2', default=220.,
+           active='vw.test_AR', active_value=['Enabled'])
+info.param('vw.test_AR_Vv3', label='Setting Vv3', default=240.,
+           active='vw.test_AR', active_value=['Enabled'])
+info.param('vw.test_AR_Vv4', label='Setting Vv4', default=260.,
+           active='vw.test_AR', active_value=['Enabled'])
 
 # EUT general parameters
 info.param_group('eut', label='EUT Parameters', glob=True)
