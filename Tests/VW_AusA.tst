@@ -25,6 +25,6 @@
     <param name="hil.mode" type="string">Disabled</param>
     <param name="vv.test_AA" type="string">Enabled</param>
     <param name="eut.phases" type="string">Three phase</param>
-    <param name="vv.mode" type="string">Volt-Watt</param>
+    <param name="vv.mode" type="string">Volt-Var</param>
   </params>
 </scriptConfig>

@@ -1,6 +1,6 @@
 <suite globals="True" name="1547.1 Testing">
   <members>
-    <member name="VV.ste" />
+    <member name="VW.ste" />
   </members>
   <params>
     <param name="eut.p_min" type="float">0.0</param>

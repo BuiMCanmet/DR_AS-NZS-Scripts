@@ -56,7 +56,8 @@ F = 'F'
 P = 'P'
 Q = 'Q'
 
-def Combo_vw_vv_mode(vw_curves):
+#Test protocole including VoltWatt and VoltVar
+def vw_combined_vv_mode(vw_curves):
 
     result = script.RESULT_FAIL
     daq = None
@@ -152,11 +153,11 @@ def Combo_vw_vv_mode(vw_curves):
         for vw_curve in vw_curves:
             #ts.log(f'curves={vw_curve}')
             ts.log(f'Starting test with characteristic curve {vw_curve}')
-            VoltVar.reset_curve(vw_curve)
-            VoltVar.reset_time_settings(tr=vw_response_time, number_tr=2)
+            VoltWatt.reset_curve(vw_curve)
+            VoltWatt.reset_time_settings(tr=vw_response_time, number_tr=2)
             vv_pairs = VoltVar.get_params(region=vw_curve)
             vw_pairs = VoltWatt.get_params(region=vw_curve)
-            ts.log_debug(f'volt-var_pairs:{vw_pairs}')
+            ts.log_debug(f'volt-var_pairs:{vv_pairs}')
             ts.log_debug(f'volt-watt_pairs:{vw_pairs}')
 
             '''
@@ -205,14 +206,13 @@ def Combo_vw_vv_mode(vw_curves):
             Going trough step C to step N
             """
             #Construct the v_steps_dict from step c to step n
-            v_steps_dict = collections.OrderedDict()
-
-            VoltVar.set_step_label(starting_label='C')
-
+            #v_steps_dict = collections.OrderedDict()
+            v_steps_dict = VoltWatt.create_dict_steps(mode='Volt-Var', secondary_pairs=vv_pairs)
+            """
+            VoltWatt.set_step_label(starting_label='C')
             # step C
             v_steps_dict[VoltVar.get_step_label()] = vw_pairs['Vv3']
             # step DE 1 to 5
-
             delta_v4_v3_step = (vw_pairs['Vv4'] - vw_pairs['Vv3'])/5.0
             delta_v2_v1_step = (vw_pairs['Vv2'] - vw_pairs['Vv1'])/5.0
 
@@ -223,7 +223,6 @@ def Combo_vw_vv_mode(vw_curves):
             # step FG 1 to 5
             for i in range(0, 6):
                 v_steps_dict[VoltVar.get_step_label()] = round(voltage - i*delta_v4_v3_step, 2)
-
             voltage = vw_pairs['Vv2']
             # step H
             for i in range(0, 6):
@@ -234,11 +233,11 @@ def Combo_vw_vv_mode(vw_curves):
                 v_steps_dict[VoltVar.get_step_label()] = round(voltage + i*delta_v2_v1_step, 2)
 
             v_steps_dict[VoltVar.get_step_label()] = round(vw_pairs['Vw2'] - 1.)
-
+            """
             ts.log_debug(v_steps_dict)
 
             dataset_filename = f'vw_vv_{vw_curve}'
-            VoltVar.reset_filename(filename=dataset_filename)
+            VoltWatt.reset_filename(filename=dataset_filename)
             # Start the data acquisition systems
             daq.data_capture(True)
 
@@ -255,7 +254,6 @@ def Combo_vw_vv_mode(vw_curves):
 
                     VoltWatt.record_timeresponse(daq=daq, step_value=v_step)
                     VoltWatt.evaluate_criterias(daq=daq)
-                    VoltWatt.evaluate_criterias(daq)
                     result_summary.write(VoltWatt.write_rslt_sum())
 
             """
@@ -310,6 +308,8 @@ def Combo_vw_vv_mode(vw_curves):
 
     return result
 
+def vw_mode(vw_curves):
+    pass
 
 def test_run():
 
@@ -343,8 +343,10 @@ def test_run():
         if ts.param_value('vv.test_AR') == 'Enabled':
             vw_curves.append(5)
             #TODO TEST_AR to be implemented
-        if mode == 'Volt-Watt':
-            result = Combo_vw_vv_mode(vw_curves=vw_curves)
+        if mode == 'Volt-Var':
+            result = vw_combined_vv_mode(vw_curves=vw_curves)
+        elif mode == 'None':
+            result = vw_mode(vw_curves=vw_curves)
 
     except script.ScriptFail as e:
         reason = str(e)
@@ -391,7 +393,7 @@ info = script.ScriptInfo(name=os.path.basename(__file__), run=run, version='1.0.
 
 # vv test parameters
 info.param_group('vv', label='Test Parameters')
-info.param('vv.mode', label='Combining additional functions', default='Volt-Watt', values=['Volt-Watt'])
+info.param('vv.mode', label='Combining additional functions', default='None', values=['Volt-Var', 'None'])
 info.param('vv.test_AA', label='Australia A curve', default='Enabled', values=['Disabled', 'Enabled'])
 info.param('vv.test_AB', label='Australia B curve', default='Disabled', values=['Disabled', 'Enabled'])
 info.param('vv.test_AC', label='Australia C curve', default='Disabled', values=['Disabled', 'Enabled'])
