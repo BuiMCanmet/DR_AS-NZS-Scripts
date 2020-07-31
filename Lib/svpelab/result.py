@@ -323,7 +323,7 @@ class ResultWorkbook(object):
 
         chart.set_title({'name': title})
         chart.set_size({'width': 1200, 'height': 600})
-        if params.get('plot.x.axis.min', '') != 'Not congigured':
+        if params.get('plot.x.axis.min', '') != 'Not congigured' and params.get('plot.x.axis.min', '') != '':
             chart.set_x_axis({'name': params.get('plot.x.title', ''), 'min': params.get('plot.x.axis.min', '')})
         else:
             chart.set_x_axis({'name': params.get('plot.x.title', '')})
