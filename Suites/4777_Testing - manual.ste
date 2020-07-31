@@ -1,6 +1,7 @@
 <suite globals="True" name="4777_Testing - manual">
   <members>
     <member name="VW.ste" />
+    <member name="VW_VV.ste" />
   </members>
   <params>
     <param name="eut.p_min" type="float">0.0</param>
