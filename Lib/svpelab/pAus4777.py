@@ -71,6 +71,12 @@ FULL_NAME = {'V': 'Voltage',
              'F': 'Frequency',
              'PF': 'Power Factor'}
 
+def VersionValidation(script_version):
+    if script_version != VERSION:
+        raise pAus4777Error(f'Error in pAus4777 library version is {VERSION} while script version is {script_version}.'
+                            f'Update library and script version accordingly.')
+    else:
+        pass
 
 class pAus4777Error(Exception):
     pass
@@ -946,6 +952,10 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
         # self.set_imbalance_config()
 
     def set_params(self):
+        """
+        Function to create dictionnary with all characteristics curves/regions available
+        :return: Nothing
+        """
         self.param['AA'] = {
             'Vw1': round((256./230.) * self.v_nom, 2),
             'Vw2': round((260./230.) * self.v_nom, 2),
@@ -979,6 +989,13 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
         }
         """
     def create_dict_steps(self, mode=None, secondary_pairs=None):
+        """
+        Function to create dictionnary depending on which mode volt-watt is running
+        :param mode: string [None, Volt-Var, etc]
+        :param secondary_pairs: if mode is not none, secondary_pairs might be required to give curve points of
+        the secondary function
+        :return: Voltage step dictionnary
+        """
 
         # Construct the v_steps_dict from step c to step n
         v_steps_dict = collections.OrderedDict()

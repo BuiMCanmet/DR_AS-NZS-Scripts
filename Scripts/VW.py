@@ -85,12 +85,14 @@ def vw_mode(vw_curves, mode=None):
         phases = ts.param_value('eut.phases')
 
         vw_response_time = 0
-        vw_timing = [ts.param_value('vw.commencement_time'), ts.param_value('vw.completion_time'),
+        vw_timing = [ts.param_value('vw.commencement_time'),
+                     ts.param_value('vw.completion_time'),
                      ts.param_value('vw.step_time_period')]
 
         """
         A separate module has been create for the DR_AS_NZS_4777.2 Standard
         """
+        pAus4777.VersionValidation(script_version=ts.info.version)
         VoltWatt = pAus4777.VoltWatt(ts=ts)
         ts.log_debug(f"AUS4777,2 Library configured for {VoltWatt.get_script_name()}")
         if mode == 'Volt-Var':
