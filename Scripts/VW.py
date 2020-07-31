@@ -57,7 +57,7 @@ P = 'P'
 Q = 'Q'
 
 #Test protocole including VoltWatt and VoltVar
-def vw_combined_vv_mode(vw_curves):
+def vw_mode(vw_curves, mode=None):
 
     result = script.RESULT_FAIL
     daq = None
@@ -90,10 +90,10 @@ def vw_combined_vv_mode(vw_curves):
         """
         A separate module has been create for the DR_AS_NZS_4777.2 Standard
         """
-        VoltVar = pAus4777.VoltVar(ts=ts)
         VoltWatt = pAus4777.VoltWatt(ts=ts)
         ts.log_debug(f"AUS4777,2 Library configured for {VoltWatt.get_script_name()}")
-
+        if mode == 'Volt-Var':
+            VoltVar = pAus4777.VoltVar(ts=ts)
 
         # result params
         x_axis_specs = {'min': v_low * 0.9}
@@ -157,9 +157,11 @@ def vw_combined_vv_mode(vw_curves):
             ts.log(f'Starting test with characteristic curve {vw_curve}')
             VoltWatt.reset_curve(vw_curve)
             VoltWatt.reset_time_settings(tr=vw_response_time, number_tr=2)
-            vv_pairs = VoltVar.get_params(region=vw_curve)
+            if mode == 'Volt-Var':
+                vv_pairs = VoltVar.get_params(region=vw_curve)
+                ts.log_debug(f'volt-var_pairs:{vv_pairs}')
+
             vw_pairs = VoltWatt.get_params(region=vw_curve)
-            ts.log_debug(f'volt-var_pairs:{vv_pairs}')
             ts.log_debug(f'volt-watt_pairs:{vw_pairs}')
 
             '''
@@ -208,37 +210,16 @@ def vw_combined_vv_mode(vw_curves):
             Going trough step C to step N
             """
             #Construct the v_steps_dict from step c to step n
-            #v_steps_dict = collections.OrderedDict()
-            v_steps_dict = VoltWatt.create_dict_steps(mode='Volt-Var', secondary_pairs=vv_pairs)
-            """
-            VoltWatt.set_step_label(starting_label='C')
-            # step C
-            v_steps_dict[VoltVar.get_step_label()] = vw_pairs['Vv3']
-            # step DE 1 to 5
-            delta_v4_v3_step = (vw_pairs['Vv4'] - vw_pairs['Vv3'])/5.0
-            delta_v2_v1_step = (vw_pairs['Vv2'] - vw_pairs['Vv1'])/5.0
+            if mode == 'None':
+                v_steps_dict = VoltWatt.create_dict_steps(mode=mode)
+            elif mode == 'Volt-Var':
+                v_steps_dict = VoltWatt.create_dict_steps(mode=mode, secondary_pairs=vv_pairs)
 
-            voltage = vw_pairs['Vv3']
-            for i in range(0, 6):
-                v_steps_dict[VoltVar.get_step_label()] = round(voltage + i*delta_v4_v3_step, 2)
-
-            # step FG 1 to 5
-            for i in range(0, 6):
-                v_steps_dict[VoltVar.get_step_label()] = round(voltage - i*delta_v4_v3_step, 2)
-            voltage = vw_pairs['Vv2']
-            # step H
-            for i in range(0, 6):
-                # step IJ 1 to 5
-                v_steps_dict[VoltVar.get_step_label()] = round(voltage - i*delta_v2_v1_step, 2)
-            for i in range(0, 6):
-                # step KL 1 to 5
-                v_steps_dict[VoltVar.get_step_label()] = round(voltage + i*delta_v2_v1_step, 2)
-
-            v_steps_dict[VoltVar.get_step_label()] = round(vw_pairs['Vw2'] - 1.)
-            """
             ts.log_debug(v_steps_dict)
 
-            dataset_filename = f'vw_vv_{vw_curve}'
+            dataset_filename = f'VW_{vw_curve}'
+            if mode == 'Volt-Var':
+                dataset_filename += '_combined_VV'
             VoltWatt.reset_filename(filename=dataset_filename)
             # Start the data acquisition systems
             daq.data_capture(True)
@@ -310,9 +291,6 @@ def vw_combined_vv_mode(vw_curves):
 
     return result
 
-def vw_mode(vw_curves):
-    pass
-
 def test_run():
 
     result = script.RESULT_FAIL
@@ -335,20 +313,18 @@ def test_run():
 
         v_nom = ts.param_value('eut.v_nom')
         if ts.param_value('vv.test_AA') == 'Enabled':
-            vw_curves.append('Australia_A')
+            vw_curves.append('AA')
         if ts.param_value('vv.test_AB') == 'Enabled':
-            vw_curves.append('Australia_B')
+            vw_curves.append('AB')
         if ts.param_value('vv.test_AC') == 'Enabled':
-            vw_curves.append('Australia_C')
+            vw_curves.append('AC')
         if ts.param_value('vv.test_NZ') == 'Enabled':
-            vw_curves.append('New_Zealand')
+            vw_curves.append('NZ')
         if ts.param_value('vv.test_AR') == 'Enabled':
             vw_curves.append(5)
             #TODO TEST_AR to be implemented
-        if mode == 'Volt-Var':
-            result = vw_combined_vv_mode(vw_curves=vw_curves)
-        elif mode == 'None':
-            result = vw_mode(vw_curves=vw_curves)
+
+        result = vw_mode(vw_curves=vw_curves, mode=mode)
 
     except script.ScriptFail as e:
         reason = str(e)

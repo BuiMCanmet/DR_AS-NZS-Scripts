@@ -24,7 +24,7 @@
     <param name="das.mode" type="string">Disabled</param>
     <param name="hil.mode" type="string">Disabled</param>
     <param name="vv.test_AA" type="string">Enabled</param>
+    <param name="vv.mode" type="string">None</param>
     <param name="eut.phases" type="string">Single phase</param>
-    <param name="vv.mode" type="string">Volt-Watt</param>
   </params>
 </scriptConfig>
