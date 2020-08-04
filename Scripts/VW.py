@@ -93,14 +93,20 @@ def vw_mode(vw_curves, mode=None):
         A separate module has been create for the DR_AS_NZS_4777.2 Standard
         """
         pAus4777.VersionValidation(script_version=ts.info.version)
-        VoltWatt = pAus4777.VoltWatt(ts=ts)
-        ts.log_debug(f"AUS4777,2 Library configured for {VoltWatt.get_script_name()}")
+
         if mode == 'Volt-Var':
-            VoltVar = pAus4777.VoltVar(ts=ts)
+            #VoltVar = pAus4777.VoltVar(ts=ts)
+            Active_function = pAus4777.ActiveFunction(ts=ts, functions=[VW, VV])
+        else:
+            Active_function = pAus4777.ActiveFunction(ts=ts, function=[VW])
+        #ts.log_debug(f"AUS4777,2 Library configured for {Active_function.script_complete_name}")
+        #ts.log_debug(f"AUS4777,2 Library configured for {Active_function.VoltWatt.get_params()}")
 
         # result params
         x_axis_specs = {'min': v_low * 0.9}
-        result_params = VoltWatt.get_rslt_param_plot(x_axis_specs=x_axis_specs)
+        #result_params = VoltWatt.get_rslt_param_plot(x_axis_specs=x_axis_specs)
+        result_params = Active_function.get_rslt_param_plot(x_axis_specs=x_axis_specs)
+
         ts.log_debug(result_params)
 
         '''
@@ -117,7 +123,7 @@ def vw_mode(vw_curves, mode=None):
         pv = pvsim.pvsim_init(ts)
 
         # DAS soft channels
-        das_points = VoltWatt.get_sc_points()
+        das_points = Active_function.get_sc_points()
         # initialize data acquisition system
         daq = das.das_init(ts, sc_points=das_points['sc'])
 
@@ -149,23 +155,24 @@ def vw_mode(vw_curves, mode=None):
         result_summary_filename = 'result_summary.csv'
         result_summary = open(ts.result_file_path(result_summary_filename), 'a+')
         ts.result_file(result_summary_filename)
-        result_summary.write(VoltWatt.get_rslt_sum_col_name())
+        ts.log(f'col_name={Active_function.get_rslt_sum_col_name()}')
+        result_summary.write(Active_function.get_rslt_sum_col_name())
 
         '''
         Repeat the test for each regions curves (Australia A, Australia B, Australia C, New Zealand and Allowed range)
         '''
-        #ts.log(f'curves={vw_curves}')
+        ts.log(f'curves={vw_curves}')
         for vw_curve in vw_curves:
             #ts.log(f'curves={vw_curve}')
             ts.log(f'Starting test with characteristic curve {vw_curve}')
-            VoltWatt.reset_curve(vw_curve)
-            VoltWatt.reset_time_settings(tr=vw_timing, number_tr=3)
+            Active_function.reset_curve(vw_curve)
+            Active_function.reset_time_settings(tr=vw_timing, number_tr=3)
             
             if mode == 'Volt-Var':
-                vv_pairs = VoltVar.get_params(region=vw_curve)
+                vv_pairs = Active_function.get_params(function=VV, region=vw_curve)
                 ts.log_debug(f'volt-var_pairs:{vv_pairs}')
 
-            vw_pairs = VoltWatt.get_params(region=vw_curve)
+            vw_pairs = Active_function.get_params(function=VW, region=vw_curve)
             ts.log_debug(f'volt-watt_pairs:{vw_pairs}')
 
             '''
@@ -214,17 +221,17 @@ def vw_mode(vw_curves, mode=None):
             Going trough step C to step N
             """
             #Construct the v_steps_dict from step c to step n
-            if mode == 'None':
-                v_steps_dict = VoltWatt.create_dict_steps(mode=mode)
-            elif mode == 'Volt-Var':
-                v_steps_dict = VoltWatt.create_dict_steps(mode=mode, secondary_pairs=vv_pairs)
 
+            if mode == 'Volt-Var':
+                v_steps_dict = Active_function.create_vw_dict_steps(mode=mode, secondary_pairs=vv_pairs)
+            else:
+                v_steps_dict = Active_function.create_vw_dict_steps(mode=mode)
             ts.log_debug(v_steps_dict)
 
             dataset_filename = f'VW_{vw_curve}'
             if mode == 'Volt-Var':
                 dataset_filename += '_combined_VV'
-            VoltWatt.reset_filename(filename=dataset_filename)
+            Active_function.reset_filename(filename=dataset_filename)
             # Start the data acquisition systems
             daq.data_capture(True)
 
@@ -234,14 +241,14 @@ def vw_mode(vw_curves, mode=None):
                     if grid is not None:
                         grid.voltage(v_step)
                 else:
-                    VoltWatt.start(daq=daq, step_label=step_label)
+                    Active_function.start(daq=daq, step_label=step_label)
 
                     if grid is not None:
                         grid.voltage(v_step)
 
-                    VoltWatt.record_timeresponse(daq=daq, step_value=v_step)
-                    VoltWatt.evaluate_criterias(daq=daq)
-                    result_summary.write(VoltWatt.write_rslt_sum())
+                    Active_function.record_timeresponse(daq=daq, step_value=v_step)
+                    Active_function.evaluate_criterias()
+                    result_summary.write(Active_function.write_rslt_sum())
 
             """
             (o) Summarize results in a table from initial value to final voltage value showing voltage,
@@ -315,17 +322,15 @@ def test_run():
 
         # Normal combined volt-var volt-watt test (Section 5.14.4)
 
-        v_nom = ts.param_value('eut.v_nom')
-
-        if ts.param_value('vv.test_AA') == 'Enabled':
+        if ts.param_value('vw.test_AA') == 'Enabled':
             vw_curves.append('AA')
-        if ts.param_value('vv.test_AB') == 'Enabled':
+        if ts.param_value('vw.test_AB') == 'Enabled':
             vw_curves.append('AB')
-        if ts.param_value('vv.test_AC') == 'Enabled':
+        if ts.param_value('vw.test_AC') == 'Enabled':
             vw_curves.append('AC')
-        if ts.param_value('vv.test_NZ') == 'Enabled':
+        if ts.param_value('vw.test_NZ') == 'Enabled':
             vw_curves.append('NZ')
-        if ts.param_value('vv.test_AR') == 'Enabled':
+        if ts.param_value('vw.test_AR') == 'Enabled':
             vw_curves.append(5)
             #TODO TEST_AR to be implemented
 

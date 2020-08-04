@@ -188,12 +188,12 @@ class UtilParameters:
     """
     Getter functions
     """
-    def get_params(self, region=None):
+    def get_params(self, function, region=None):
 
         if region == None:
-            return self.param
+            return self.param[function]
         else:
-            return self.param[region]
+            return self.param[function][region]
 
     def get_step_label(self):
         """
@@ -291,17 +291,16 @@ class UtilParameters:
             self.script_complete_name = 'Script name not initialized'
         return self.script_complete_name
 
-
 class DataLogging:
-    def __init__(self, meas_values, x_criteria, y_criteria):
+    def __init__(self):
         self.type_meas = {'V': 'AC_VRMS', 'I': 'AC_IRMS', 'P': 'AC_P', 'Q': 'AC_Q', 'VA': 'AC_S',
                           'F': 'AC_FREQ', 'PF': 'AC_PF'}
         # Values to be recorded
-        self.meas_values = meas_values
+        #self.meas_values = meas_values
         # Values defined as target/step values which will be controlled as step
-        self.x_criteria = x_criteria
+        #self.x_criteria = x_criteria
         # Values defined as values which will be controlled as step
-        self.y_criteria = y_criteria
+        #self.y_criteria = y_criteria
         self.rslt_sum_col_name = ''
         self.sc_points = {}
         #self._config()
@@ -330,7 +329,7 @@ class DataLogging:
         #       The measure value are in absolute value
 
         xs = self.x_criteria
-        ys = self.y_criteria
+        ys = list(self.y_criteria.keys())
         row_data = []
 
         for meas_value in self.meas_values:
@@ -458,7 +457,7 @@ class DataLogging:
         """
 
         xs = self.x_criteria
-        ys = self.y_criteria
+        ys = list(self.y_criteria.keys())
         last_iter = 2
         row_data = []
 
@@ -476,6 +475,7 @@ class DataLogging:
                 row_data.append(str(self.tr_value['%s_T_COM_TARG_%d' % (meas_value, last_iter)]))
             # Variables needed for criteria verifications with min max passfail
             if meas_value in ys:
+                #self.ts.log_debug(f'{}')
                 row_data.append(str(self.tr_value['%s_T_COM_TARG_%s' % (meas_value, last_iter)]))
                 row_data.append(str(self.tr_value['%s_T_COM_%s_MIN' % (meas_value, last_iter)]))
                 row_data.append(str(self.tr_value['%s_T_COM_%s_MAX' % (meas_value, last_iter)]))
@@ -512,8 +512,13 @@ class DataLogging:
         else:
             self.initial_value[self.x_criteria] = {'x_value': self.get_measurement_total(data=data, type_meas=self.x_criteria, log=False)}
             daq.sc['%s_MEAS' % self.x_criteria] = self.initial_value[self.x_criteria]['x_value']
+
         if isinstance(self.y_criteria, list):
             for ys in self.y_criteria:
+                self.initial_value[ys] = {'y_value': self.get_measurement_total(data=data, type_meas=ys, log=False)}
+                daq.sc['%s_MEAS' % ys] = self.initial_value[ys]["y_value"]
+        elif isinstance(self.y_criteria, dict):
+            for ys in list(self.y_criteria.keys()):
                 self.initial_value[ys] = {'y_value': self.get_measurement_total(data=data, type_meas=ys, log=False)}
                 daq.sc['%s_MEAS' % ys] = self.initial_value[ys]["y_value"]
         else:
@@ -539,7 +544,8 @@ class DataLogging:
         """
 
         x = self.x_criteria
-        y = self.y_criteria
+        y = list(self.y_criteria.keys())
+        self.ts.log_debug(f'y_list={y}')
         #self.tr = tr
         T_Com_names = {1: '1S', 2: '10S', 3: '20S'}
         tr_list = []
@@ -570,6 +576,7 @@ class DataLogging:
             # update daq.sc values for Y_TARGET, Y_TARGET_MIN, and Y_TARGET_MAX
 
             # store the daq.sc['Y_TARGET'], daq.sc['Y_TARGET_MIN'], and daq.sc['Y_TARGET_MAX'] in tr_value
+            self.ts.log_debug(f'meas_values={self.meas_values}')
 
             for meas_value in self.meas_values:
                 try:
@@ -581,9 +588,13 @@ class DataLogging:
                         self.tr_value['%s_T_COM_TARG_%s' % (meas_value, tr_iter)] = step_value
                         self.ts.log('X Value (%s) = %s' % (meas_value, daq.sc['%s_MEAS' % meas_value]))
                     elif meas_value in y:
-                        daq.sc['%s_TARGET' % meas_value] = self.update_target_value(step_value)
-                        daq.sc['%s_TARGET_MIN' % meas_value], daq.sc[
-                            '%s_TARGET_MAX' % meas_value] = self.calculate_min_max_values(daq=daq, data=data)
+                        self.ts.log_debug(f'{meas_value} and {y}')
+                        daq.sc['%s_TARGET' % meas_value] = self.update_target_value(value=step_value,
+                                                                                    function=self.y_criteria[meas_value])
+                        daq.sc['%s_TARGET_MIN' % meas_value], daq.sc['%s_TARGET_MAX' % meas_value] =\
+                            self.calculate_min_max_values(data=data, function=self.y_criteria[meas_value])
+                        self.ts.log_debug(f't_iter={tr_iter}')
+                        self.ts.log_debug(f'measvalue={meas_value}={daq.sc["%s_TARGET" % meas_value]}')
                         self.tr_value[f'{meas_value}_T_COM_TARG_{tr_iter}'] = daq.sc['%s_TARGET' % meas_value]
                         self.tr_value[f'{meas_value}_T_COM_{tr_iter}_MIN'] = daq.sc['%s_TARGET_MIN' % meas_value]
                         self.tr_value[f'{meas_value}_T_COM_{tr_iter}_MAX'] = daq.sc['%s_TARGET_MAX' % meas_value]
@@ -592,7 +603,7 @@ class DataLogging:
                                       daq.sc['%s_TARGET_MIN' % meas_value], daq.sc['%s_TARGET_MAX' % meas_value]))
                 except Exception as e:
                     self.ts.log_debug('Measured value (%s) not recorded: %s' % (meas_value, e))
-
+                    raise
             #self.tr_value[tr_iter]["timestamp"] = tr_
             self.tr_value[f'timestamp_{tr_iter}'] = tr_
             tr_iter = tr_iter + 1
@@ -602,12 +613,49 @@ class DataLogging:
 
         # except Exception as e:
         #    raise p1547Error('Error in get_tr_data(): %s' % (str(e)))
+    def update_target_value(self, value, function):
+
+        if function == VV:
+            vv_pairs=self.get_param(function=VV, region=self.region)
+            x = [vv_pairs['Vv1'], vv_pairs['Vv2'],
+                 vv_pairs['Vv3'], vv_pairs['Vv4']]
+            y = [vv_pairs['Q1'], vv_pairs['Q2'],
+                 vv_pairs['Q3'], vv_pairs['Q4']]
+            q_value = float(np.interp(value, x, y))
+            q_value *= self.pwr
+            return round(q_value, 1)
+
+        if function == VW:
+            vw_pairs = self.get_params(function=VW, region=self.region)
+            x = [vw_pairs['Vw1'], vw_pairs['Vw2']]
+            y = [vw_pairs['P1'], vw_pairs['P2']]
+            p_value = float(np.interp(value, x, y))
+            p_value *= self.pwr
+            return round(p_value, 1)
+
+    def calculate_min_max_values(self, data, function):
+        if function == VV:
+            y = 'Q'
+            v_meas = self.get_measurement_total(data=data, type_meas='V', log=False)
+            target_min = self.update_target_value(v_meas + self.MRA['V'] * 1.5, function=VV) - (self.MRA['Q'] * 1.5)
+            target_max = self.update_target_value(v_meas - self.MRA['V'] * 1.5, function=VV) + (self.MRA['Q'] * 1.5)
+
+            return target_min, target_max
+
+        elif function == VW:
+
+            y = 'Q'
+            v_meas = self.get_measurement_total(data=data, type_meas='V', log=False)
+            target_min = self.update_target_value(v_meas + self.MRA['V'] * 1.5, function=VW) - (self.MRA['P'] * 1.5)
+            target_max = self.update_target_value(v_meas - self.MRA['V'] * 1.5, function=VW) + (self.MRA['P'] * 1.5)
+
+            return target_min, target_max
 
 class CriteriaValidation:
     def __init__(self):
         pass
 
-    def evaluate_criterias(self, daq):
+    def evaluate_criterias(self):
         self.response_time_criterias()
 
     def response_time_criterias(self):
@@ -617,7 +665,7 @@ class CriteriaValidation:
 
 
             Y_final. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .-------|
-            Y_Tcom_10s. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ./
+            Y_Tcompletion_10s. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ./
                                                                                                     -    .
                                                                                                /         .
                                                                                            -             .
@@ -627,7 +675,7 @@ class CriteriaValidation:
                                                                                   -                      .
                                                                                 /                        .
                                                                             -                            .
-            Y_Tcom_1s. . . . . . . . . . . . . . . . . . . . . . . . ./                                  .
+            Y_Tcompletion_1s. . . . . . . . . . . . . . . . . . . . . . . . ./                                  .
                                                                -      .                                  .
                                                         /             .                                  .
             Y_initial. .|----------------------------                 .                                  .
@@ -649,144 +697,45 @@ class CriteriaValidation:
             +------------------------------------------------------------+----------------------------------------+
 
             Pass/Fail Criterias:
-                1) |Y_Tcom_1s - Y_initial| > 2*Y_tol (Y_tol = 4%*S_Rated)
+                1) |Y_Tcompletion_1s - Y_initial| > 2*Y_tol (Y_tol = 4%*S_Rated)
                 2) |Y_final - Y_Tcom_10s| < 2*Y_tol
 
         """
-        for y in self.y_criteria:
+
+        for y in list(self.y_criteria.keys()):
             y_tol = self.s_rated * 0.04
             y_initial = self.initial_value[y]["y_value"]
             y_final = self.tr_value[f'{y}_T_COM_TARG_{2}']
-            y_Tcom_1s = self.tr_value[f'{y}_T_COM_{1}']
-            y_Tcom_10s = self.tr_value[f'{y}_T_COM_{2}']
+            y_Tcompletion_1s = self.tr_value[f'{y}_T_COM_{1}']
+            y_Tcompletion_10s = self.tr_value[f'{y}_T_COM_{2}']
 
 
             # pass/fail assessment for the response commencement time
-            if abs(y_Tcom_1s - y_initial) >= 2*y_tol:
+            if abs(y_Tcompletion_1s - y_initial) >= 2*y_tol:
                 self.tr_value[f'{y}_T_COM_{1}_PF'] = 'Pass'
             else:
                 self.tr_value[f'{y}_T_COM_{1}_PF'] = 'Fail'
 
             self.ts.log_debug(f' Response commencement time 1.2s for {y}, evaluation : '
-                              f'|{y_Tcom_1s:.2f} - {y_initial:.2f}| >='
+                              f'|{y_Tcompletion_1s:.2f} - {y_initial:.2f}| >='
                               f' {2*y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{1}_PF"]))
 
             # pass/fail assessment for the response completion time
-            if abs(y_final - y_Tcom_10s) <= 2*y_tol:
+            if abs(y_final - y_Tcompletion_10s) <= 2*y_tol:
                 self.tr_value[f'{y}_T_COM_{2}_PF'] = 'Pass'
             else:
                 self.tr_value[f'{y}_T_COM_{2}_PF'] = 'Fail'
 
             self.ts.log_debug(f' Response completion time 10.2s for {y}, evaluation : '
-                              f'|{y_final:.2f} - {y_Tcom_1s:.2f}| <='
+                              f'|{y_final:.2f} - {y_Tcompletion_1s:.2f}| <='
                               f' {2 * y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{2}_PF"]))
 
 class ImbalanceComponent:
-
-    def __init__(self):
-        self.mag = {}
-        self.ang = {}
-
-    def set_imbalance_config(self, imbalance_angle_fix=None):
-        """
-        Initialize the case possibility for imbalance test either with fix 120 degrees for the angle or
-        with a calculated angles that would result in a null sequence zero
-
-        :param imbalance_angle_fix:   string (Yes or No)
-        if Yes, angle are fix at 120 degrees for both cases.
-        if No, resulting sequence zero will be null for both cases.
-
-        :return: None
-        """
-
-        '''
-                                            Table 24 - Imbalanced Voltage Test Cases
-                +-----------------------------------------------------+-----------------------------------------------+
-                | Phase A (p.u.)  | Phase B (p.u.)  | Phase C (p.u.)  | In order to keep V0 magnitude                 |
-                |                 |                 |                 | and angle at 0. These parameter can be used.  |
-                +-----------------+-----------------+-----------------+-----------------------------------------------+
-                |       Mag       |       Mag       |       Mag       | Mag   | Ang  | Mag   | Ang   | Mag   | Ang    |
-        +-------+-----------------+-----------------+-----------------+-------+------+-------+-------+-------+--------+
-        |Case A |     >= 1.07     |     <= 0.91     |     <= 0.91     | 1.08  | 0.0  | 0.91  |-126.59| 0.91  | 126.59 |
-        +-------+-----------------+-----------------+-----------------+-------+------+-------+-------+-------+--------+
-        |Case B |     <= 0.91     |     >= 1.07     |     >= 1.07     | 0.9   | 0.0  | 1.08  |-114.5 | 1.08  | 114.5  |
-        +-------+-----------------+-----------------+-----------------+-------+------+-------+-------+-------+--------+
-
-        For tests with imbalanced, three-phase voltages, the manufacturer shall state whether the EUT responds
-        to individual phase voltages, or the average of the three-phase effective (RMS) values or the positive
-        sequence of voltages. For EUTs that respond to individual phase voltages, the response of each
-        individual phase shall be evaluated. For EUTs that response to the average of the three-phase effective
-        (RMS) values mor the positive sequence of voltages, the total three-phase reactive and active power
-        shall be evaluated.
-        '''
-        '''
-        try:
-            if imbalance_angle_fix == 'std':
-                # Case A
-                self.mag['case_a'] = [1.07 * self.v_nom, 0.91 * self.v_nom, 0.91 * self.v_nom]
-                self.ang['case_a'] = [0., 120, -120]
-                # Case B
-                self.mag['case_b'] = [0.91 * self.v_nom, 1.07 * self.v_nom, 1.07 * self.v_nom]
-                self.ang['case_b'] = [0., 120.0, -120.0]
-                self.ts.log("Setting test with imbalanced test with FIXED angles/values")
-            elif imbalance_angle_fix == 'fix_mag':
-                # Case A
-                self.mag['case_a'] = [1.07 * self.v_nom, 0.91 * self.v_nom, 0.91 * self.v_nom]
-                self.ang['case_a'] = [0., 126.59, -126.59]
-                # Case B
-                self.mag['case_b'] = [0.91 * self.v_nom, 1.07 * self.v_nom, 1.07 * self.v_nom]
-                self.ang['case_b'] = [0., 114.5, -114.5]
-                self.ts.log("Setting test with imbalanced test with NOT FIXED angles/values")
-            elif imbalance_angle_fix == 'fix_ang':
-                # Case A
-                self.mag['case_a'] = [1.08 * self.v_nom, 0.91 * self.v_nom, 0.91 * self.v_nom]
-                self.ang['case_a'] = [0., 120, -120]
-                # Case B
-                self.mag['case_b'] = [0.9 * self.v_nom, 1.08 * self.v_nom, 1.08 * self.v_nom]
-                self.ang['case_a'] = [0., 120, -120]
-                self.ts.log("Setting test with imbalanced test with NOT FIXED angles/values")
-            elif imbalance_angle_fix == 'not_fix':
-                # Case A
-                self.mag['case_a'] = [1.08 * self.v_nom, 0.91 * self.v_nom, 0.91 * self.v_nom]
-                self.ang['case_a'] = [0., 126.59, -126.59]
-                # Case B
-                self.mag['case_b'] = [0.9 * self.v_nom, 1.08 * self.v_nom, 1.08 * self.v_nom]
-                self.ang['case_b'] = [0., 114.5, -114.5]
-                self.ts.log("Setting test with imbalanced test with NOT FIXED angles/values")
-
-            #return (self.mag, self.ang)
-        except Exception as e:
-            self.ts.log_error('Incorrect Parameter value : %s' % e)
-            raise
-        '''
-    def set_grid_asymmetric(self, grid, case, imbalance_resp='AVG_3PH_RMS'):
-        """
-        Configure the grid simulator to change the magnitude and angles.
-        :param grid:   A gridsim object from the svpelab library
-        :param case:   string (case_a or case_b)
-        :return: nothing
-        """
-        self.ts.log_debug(f'mag={self.mag}')
-        self.ts.log_debug(f'grid={grid}')
-        self.ts.log_debug(f'imbalance_resp={imbalance_resp}')
-
-        if grid is not None:
-            grid.config_asymmetric_phase_angles(mag=self.mag[case], angle=self.ang[case])
-        if imbalance_resp == 'AVG_3PH_RMS':
-            self.ts.log_debug(f'mag={self.mag[case]}')
-            return round(sum(self.mag[case])/3.0,2)
-        elif imbalance_resp is 'INDIVIDUAL_PHASES_VOLTAGES':
-            #TODO TO BE COMPLETED
-            pass
-        elif imbalance_resp is 'POSITIVE_SEQUENCE_VOLTAGES':
-            #TODO to be completed
-            pass
-
+    pass
 
 """
 Section reserved for HIL model object
 """
-
 
 class HilModel(object):
     def __init__(self, ts, support_interfaces):
@@ -828,7 +777,14 @@ class HilModel(object):
 This section is for Voltage stabilization function such as VV, VW, CPF and CRP
 """
 
-class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
+#class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
+class VoltVar(EutParameters):
+
+    meas_values = ['V', 'Q', 'P']
+    x_criteria = ['V']
+    y_criteria = {'Q': VV}
+    script_complete_name = 'Volt-Var'
+
     """
     param curve: choose curve characterization [1-3] 1 is default
     """
@@ -838,28 +794,23 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
     def __init__(self, ts):
         self.ts = ts
         #self.criteria_mode = [True, True, True]
-        EutParameters.__init__(self, ts)
+        #EutParameters.__init__(self, ts)
         UtilParameters.__init__(self)
         #TODO verify this section for australian standard
-        DataLogging.__init__(self, meas_values=['V', 'Q', 'P'], x_criteria=['V'], y_criteria=['Q'])
-        CriteriaValidation.__init__(self)
+        #DataLogging.__init__(self, meas_values=['V', 'Q', 'P'], x_criteria=['V'], y_criteria=['Q'])
+        #CriteriaValidation.__init__(self)
         #if imbalance:
         #    ImbalanceComponent.__init__(self)
         self.pairs = {}
-        self.param = {}
         self.target_dict = []
         self.script_name = VV
-        self.script_complete_name = 'Volt-Var'
-        self._config()
-
-    def _config(self):
-        self.set_params()
+        VoltVar.set_params(self)
         # Create the pairs need
         # self.set_imbalance_config()
 
     def set_params(self):
-
-        self.param['AA'] = {
+        self.param[VV] = {}
+        self.param[VV]['AA'] = {
             'Vv1': round((207./230.) * self.v_nom, 2),
             'Vv2': round((220./230.) * self.v_nom, 2),
             'Vv3': round((240./230.) * self.v_nom, 2),
@@ -870,7 +821,7 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'Q4': round(self.s_rated * -0.60, 2)
         }
 
-        self.param['AB'] = {
+        self.param[VV]['AB'] = {
             'Vv1': round((205./230.) * self.v_nom, 2),
             'Vv2': round((220./230.) * self.v_nom, 2),
             'Vv3': round((235./230.) * self.v_nom, 2),
@@ -881,7 +832,7 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'Q4': round(self.s_rated * -0.4, 2)
         }
 
-        self.param['AC'] = {
+        self.param[VV]['AC'] = {
             'Vv1': round((215./230.) * self.v_nom, 2),
             'Vv2': round((230./230.) * self.v_nom, 2),
             'Vv3': round((240./230.) * self.v_nom, 2),
@@ -892,7 +843,7 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'Q4': round(self.s_rated * -0.6, 2)
         }
 
-        self.param['NZ'] = {
+        self.param[VV]['NZ'] = {
             'Vv1': round((215./230.) * self.v_nom, 2),
             'Vv2': round((230./230.) * self.v_nom, 2),
             'Vv3': round((240./230.) * self.v_nom, 2),
@@ -902,79 +853,49 @@ class VoltVar(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'Q3': round(self.s_rated * 0, 2),
             'Q4': round(self.s_rated * -0.6, 2)
         }
+        self.ts.log_debug(f'{self.param[VV]}')
 
-    def update_target_value(self, value):
+    def create_vv_dict_steps(self, mode=None, secondary_pairs=None):
+        pass
 
-        x = [self.param[self.region]['Vv1'], self.param[self.region]['Vv2'],
-             self.param[self.region]['Vv3'], self.param[self.region]['Vv4']]
-        y = [self.param[self.region]['Q1'], self.param[self.region]['Q2'],
-             self.param[self.region]['Q3'], self.param[self.region]['Q4']]
-        q_value = float(np.interp(value, x, y))
-        q_value *= self.pwr
-        return round(q_value, 1)
+class VoltWatt():
 
-    def calculate_min_max_values(self, daq, data):
-        y = 'Q'
-        v_meas = self.get_measurement_total(data=data, type_meas='V', log=False)
-        target_min = self.update_target_value(v_meas + self.MRA['V'] * 1.5) - (self.MRA['Q'] * 1.5)
-        target_max = self.update_target_value(v_meas - self.MRA['V'] * 1.5) + (self.MRA['Q'] * 1.5)
-
-        return target_min, target_max
-
-class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
     """
     param curve: choose curve characterization [1-3] 1 is default
     """
+    meas_values = ['V', 'Q', 'P']
+    x_criteria = ['V']
+    y_criteria = {'P': VW}
+    script_complete_name = 'Volt-Watt'
 
-    # Default curve initialization will be 1
-    #def __init__(self, ts, imbalance=False):
     def __init__(self, ts):
-        self.ts = ts
-        self.criteria_mode = [True, True, True]
-        EutParameters.__init__(self, ts)
-        UtilParameters.__init__(self)
-        #TODO verify this section for australian standard
-        DataLogging.__init__(self, meas_values=['V', 'Q', 'P'], x_criteria=['V'], y_criteria=['P'])
-        CriteriaValidation.__init__(self)
-        #if imbalance:
-        #    ImbalanceComponent.__init__(self)
-        self.pairs = {}
-        self.vw_pairs = {}
-        self.param = {}
-        self.target_dict = []
-        self.script_name = VW
-        self.script_complete_name = 'Volt-Watt'
-        self._config()
+        VoltWatt.set_params(self)
 
-    def _config(self):
-        self.set_params()
-        # Create the pairs need
-        # self.set_imbalance_config()
-
-    def set_params(self):
+    def set_params(self, region='AA'):
         """
         Function to create dictionnary with all characteristics curves/regions available
         :return: Nothing
         """
-        self.param['AA'] = {
+        self.param[VW] = {}
+        self.param[VW]['AA'] = {
             'Vw1': round((256./230.) * self.v_nom, 2),
             'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
-        self.param['AB'] = {
+        self.param[VW]['AB'] = {
             'Vw1': round((250./230.) * self.v_nom, 2),
             'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
-        self.param['AC'] = {
+        self.param[VW]['AC'] = {
             'Vw1': round((253./230.) * self.v_nom, 2),
             'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
-        self.param['NZ'] = {
+        self.param[VW]['NZ'] = {
             'Vw1': round((241./230.) * self.v_nom, 2),
             'Vw2': round((246./230.)* self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
@@ -988,7 +909,10 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
             'P1': round(self.p_rated, 2)
         }
         """
-    def create_dict_steps(self, mode=None, secondary_pairs=None):
+        self.ts.log(f'param={self.param[VW]}')
+        #return self.param[region]
+
+    def create_vw_dict_steps(self, mode=None, secondary_pairs=None):
         """
         Function to create dictionnary depending on which mode volt-watt is running
         :param mode: string [None, Volt-Var, etc]
@@ -1000,7 +924,7 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
         # Construct the v_steps_dict from step c to step n
         v_steps_dict = collections.OrderedDict()
 
-        vw_pairs=self.get_params(self.region)
+        vw_pairs=self.get_params(function=VW, region=self.region)
         self.ts.log(f'vw_pairs_lib={vw_pairs}')
 
         if mode == 'Volt-Var':
@@ -1052,21 +976,37 @@ class VoltWatt(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
 
         return v_steps_dict
 
-    def update_target_value(self, value):
+class ActiveFunction(EutParameters, DataLogging, UtilParameters, CriteriaValidation, VoltWatt):
 
-        x = [self.param[self.region]['Vw1'], self.param[self.region]['Vw2']]
-        y = [self.param[self.region]['P1'], self.param[self.region]['P2']]
-        q_value = float(np.interp(value, x, y))
-        q_value *= self.pwr
-        return round(q_value, 1)
+    def __init__(self, ts, functions):
+        x_criterias = []
+        y_criterias = []
+        self.param = {}
+        EutParameters.__init__(self, ts)
+        UtilParameters.__init__(self)
+        self.ts.log(f'functions={functions}')
+        self.y_criteria={}
 
-    def calculate_min_max_values(self, daq, data):
-        y = 'Q'
-        v_meas = self.get_measurement_total(data=data, type_meas='V', log=False)
-        target_min = self.update_target_value(v_meas + self.MRA['V'] * 1.5) - (self.MRA['P'] * 1.5)
-        target_max = self.update_target_value(v_meas - self.MRA['V'] * 1.5) + (self.MRA['P'] * 1.5)
+        if VW in functions:
+            VoltWatt.__init__(self, ts)
+            x_criterias += VoltWatt.x_criteria
+            self.y_criteria.update(VoltWatt.y_criteria)
+        if VV in functions:
+            VoltVar.__init__(self, ts)
+            x_criterias += VoltVar.x_criteria
+            self.y_criteria.update(VoltVar.y_criteria)
 
-        return target_min, target_max
+        #Remove duplicates
+        self.x_criteria=list(OrderedDict.fromkeys(x_criterias))
+        #self.y_criteria=list(OrderedDict.fromkeys(y_criterias))
+        self.meas_values = list(OrderedDict.fromkeys(x_criterias+list(self.y_criteria.keys())))
+        self.ts.log(f'x_criterias={self.x_criteria}')
+        self.ts.log(f'y_criterias={self.y_criteria}')
+        self.ts.log(f'meas_values={self.meas_values}')
+        self.ts.log(f'param={self.param}')
+
+        DataLogging.__init__(self)
+        CriteriaValidation.__init__(self)
 
 if __name__ == "__main__":
     pass
