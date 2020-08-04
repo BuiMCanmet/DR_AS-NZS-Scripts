@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018, CSIRO and CanmetENERGY(Natural Resources Canada)
+Copyright (c) 2018, CSIRO, SunSpec Alliance and CanmetENERGY(Natural Resources Canada)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -47,8 +47,8 @@ import random
 # import glob
 # import importlib
 
-VERSION = '1.0.0'
-LATEST_MODIFICATION = '22nd July 2020'
+VERSION = '1.0.1'
+LATEST_MODIFICATION = '4th August 2020'
 
 FW = 'FW'  # Frequency-Watt
 CPF = 'CPF'  # Constant Power Factor
@@ -61,10 +61,7 @@ PRI = 'PRI'  # Priority
 IOP = 'IOP'  # Interoperability Tests
 LV = 'LV'
 HV = 'HV'
-CAT_2 = 'CAT_2'
-CAT_3 = 'CAT_3'
-VOLTAGE = 'V'
-FREQUENCY = 'F'
+
 FULL_NAME = {'V': 'Voltage',
              'P': 'Active Power',
              'Q': 'Reactive Power',
@@ -153,7 +150,6 @@ This section is utility function needed to run the scripts such as data acquisit
 """
 
 class UtilParameters:
-    #Default region set to B
     def __init__(self):
         self.step_label = None
         self.pwr = 1.0
@@ -295,12 +291,7 @@ class DataLogging:
     def __init__(self):
         self.type_meas = {'V': 'AC_VRMS', 'I': 'AC_IRMS', 'P': 'AC_P', 'Q': 'AC_Q', 'VA': 'AC_S',
                           'F': 'AC_FREQ', 'PF': 'AC_PF'}
-        # Values to be recorded
-        #self.meas_values = meas_values
-        # Values defined as target/step values which will be controlled as step
-        #self.x_criteria = x_criteria
-        # Values defined as values which will be controlled as step
-        #self.y_criteria = y_criteria
+
         self.rslt_sum_col_name = ''
         self.sc_points = {}
         #self._config()
@@ -482,7 +473,6 @@ class DataLogging:
 
         row_data.append(self.current_step_label)
         row_data.append(str(self.filename))
-        #self.ts.log_debug(f'rowdata={row_data}')
         row_data_str = ','.join(row_data) + '\n'
 
         return row_data_str
@@ -545,7 +535,6 @@ class DataLogging:
 
         x = self.x_criteria
         y = list(self.y_criteria.keys())
-        #self.tr = tr
         T_Com_names = {1: '1S', 2: '10S', 3: '20S'}
         tr_list = []
 
@@ -561,7 +550,6 @@ class DataLogging:
                     self.tr_value['%s_T_COM_%s_MAX' % (meas_value, i)] = None
         tr_iter = 1
         for tr_ in tr_list:
-            #self.ts.log_debug(f'tr_={tr_list}')
             now = datetime.now()
             if now <= tr_:
                 time_to_sleep = tr_ - datetime.now()
@@ -573,7 +561,6 @@ class DataLogging:
             data = daq.data_capture_read()  # Return dataset created from last data capture
 
             # update daq.sc values for Y_TARGET, Y_TARGET_MIN, and Y_TARGET_MAX
-
             # store the daq.sc['Y_TARGET'], daq.sc['Y_TARGET_MIN'], and daq.sc['Y_TARGET_MAX'] in tr_value
 
             for meas_value in self.meas_values:
@@ -610,6 +597,7 @@ class DataLogging:
 
         # except Exception as e:
         #    raise p1547Error('Error in get_tr_data(): %s' % (str(e)))
+
     def update_target_value(self, value, function):
 
         if function == VV:
@@ -632,7 +620,7 @@ class DataLogging:
 
     def calculate_min_max_values(self, data, function):
         if function == VV:
-            y = 'Q'
+
             v_meas = self.get_measurement_total(data=data, type_meas='V', log=False)
             target_min = self.update_target_value(v_meas + self.MRA['V'] * 1.5, function=VV) - (self.MRA['Q'] * 1.5)
             target_max = self.update_target_value(v_meas - self.MRA['V'] * 1.5, function=VV) + (self.MRA['Q'] * 1.5)
@@ -641,7 +629,6 @@ class DataLogging:
 
         elif function == VW:
 
-            y = 'Q'
             v_meas = self.get_measurement_total(data=data, type_meas='V', log=False)
             target_min = self.update_target_value(v_meas + self.MRA['V'] * 1.5, function=VW) - (self.MRA['P'] * 1.5)
             target_max = self.update_target_value(v_meas - self.MRA['V'] * 1.5, function=VW) + (self.MRA['P'] * 1.5)
@@ -958,7 +945,10 @@ class ActiveFunction(EutParameters, DataLogging, UtilParameters, CriteriaValidat
     of all functions if needed.
     """
     def __init__(self, ts, functions):
+
+        # Values defined as target/step values which will be controlled as step
         x_criterias = []
+        # Values defined as values which will be controlled as step
         y_criterias = []
         self.param = {}
         EutParameters.__init__(self, ts)
