@@ -545,7 +545,6 @@ class DataLogging:
 
         x = self.x_criteria
         y = list(self.y_criteria.keys())
-        self.ts.log_debug(f'y_list={y}')
         #self.tr = tr
         T_Com_names = {1: '1S', 2: '10S', 3: '20S'}
         tr_list = []
@@ -576,7 +575,6 @@ class DataLogging:
             # update daq.sc values for Y_TARGET, Y_TARGET_MIN, and Y_TARGET_MAX
 
             # store the daq.sc['Y_TARGET'], daq.sc['Y_TARGET_MIN'], and daq.sc['Y_TARGET_MAX'] in tr_value
-            self.ts.log_debug(f'meas_values={self.meas_values}')
 
             for meas_value in self.meas_values:
                 try:
@@ -593,8 +591,7 @@ class DataLogging:
                                                                                     function=self.y_criteria[meas_value])
                         daq.sc['%s_TARGET_MIN' % meas_value], daq.sc['%s_TARGET_MAX' % meas_value] =\
                             self.calculate_min_max_values(data=data, function=self.y_criteria[meas_value])
-                        self.ts.log_debug(f't_iter={tr_iter}')
-                        self.ts.log_debug(f'measvalue={meas_value}={daq.sc["%s_TARGET" % meas_value]}')
+
                         self.tr_value[f'{meas_value}_T_COM_TARG_{tr_iter}'] = daq.sc['%s_TARGET' % meas_value]
                         self.tr_value[f'{meas_value}_T_COM_{tr_iter}_MIN'] = daq.sc['%s_TARGET_MIN' % meas_value]
                         self.tr_value[f'{meas_value}_T_COM_{tr_iter}_MAX'] = daq.sc['%s_TARGET_MAX' % meas_value]
@@ -616,7 +613,7 @@ class DataLogging:
     def update_target_value(self, value, function):
 
         if function == VV:
-            vv_pairs=self.get_param(function=VV, region=self.region)
+            vv_pairs=self.get_params(function=VV, region=self.region)
             x = [vv_pairs['Vv1'], vv_pairs['Vv2'],
                  vv_pairs['Vv3'], vv_pairs['Vv4']]
             y = [vv_pairs['Q1'], vv_pairs['Q2'],
@@ -785,28 +782,9 @@ class VoltVar(EutParameters):
     y_criteria = {'Q': VV}
     script_complete_name = 'Volt-Var'
 
-    """
-    param curve: choose curve characterization [1-3] 1 is default
-    """
-
-    # Default curve initialization will be 1
-    #def __init__(self, ts, imbalance=False):
     def __init__(self, ts):
-        self.ts = ts
-        #self.criteria_mode = [True, True, True]
-        #EutParameters.__init__(self, ts)
-        UtilParameters.__init__(self)
-        #TODO verify this section for australian standard
-        #DataLogging.__init__(self, meas_values=['V', 'Q', 'P'], x_criteria=['V'], y_criteria=['Q'])
-        #CriteriaValidation.__init__(self)
-        #if imbalance:
-        #    ImbalanceComponent.__init__(self)
-        self.pairs = {}
-        self.target_dict = []
-        self.script_name = VV
         VoltVar.set_params(self)
         # Create the pairs need
-        # self.set_imbalance_config()
 
     def set_params(self):
         self.param[VV] = {}
@@ -924,12 +902,10 @@ class VoltWatt():
         # Construct the v_steps_dict from step c to step n
         v_steps_dict = collections.OrderedDict()
 
-        vw_pairs=self.get_params(function=VW, region=self.region)
-        self.ts.log(f'vw_pairs_lib={vw_pairs}')
+        vw_pairs = self.get_params(function=VW, region=self.region)
 
         if mode == 'Volt-Var':
             vv_pairs = secondary_pairs
-            self.ts.log(f'vw_pairs_lib={vv_pairs}')
 
             delta_vv4_vv3_step = (vv_pairs['Vv4'] - vv_pairs['Vv3']) / 5.0
             delta_vv2_vv1_step = (vv_pairs['Vv2'] - vv_pairs['Vv1']) / 5.0
@@ -942,7 +918,6 @@ class VoltWatt():
                 v_steps_dict[f'Step_D_{i}'] = round(voltage, 2)
 
             # step FG 1 to 5
-            self.ts.log(f'voltage={voltage}')
             for i in range(1, 6):
                 voltage -= delta_vv4_vv3_step
                 v_steps_dict[f'Step_F_{i}'] = round(voltage, 2)
@@ -977,14 +952,18 @@ class VoltWatt():
         return v_steps_dict
 
 class ActiveFunction(EutParameters, DataLogging, UtilParameters, CriteriaValidation, VoltWatt):
-
+    """
+    This class acts as the main function
+    As multiple functions might be needed for a compliance script, this function will inherit
+    of all functions if needed.
+    """
     def __init__(self, ts, functions):
         x_criterias = []
         y_criterias = []
         self.param = {}
         EutParameters.__init__(self, ts)
         UtilParameters.__init__(self)
-        self.ts.log(f'functions={functions}')
+        self.ts.log(f'Functions to be activated in this test script = {functions}')
         self.y_criteria={}
 
         if VW in functions:
@@ -997,13 +976,9 @@ class ActiveFunction(EutParameters, DataLogging, UtilParameters, CriteriaValidat
             self.y_criteria.update(VoltVar.y_criteria)
 
         #Remove duplicates
-        self.x_criteria=list(OrderedDict.fromkeys(x_criterias))
+        self.x_criteria = list(OrderedDict.fromkeys(x_criterias))
         #self.y_criteria=list(OrderedDict.fromkeys(y_criterias))
         self.meas_values = list(OrderedDict.fromkeys(x_criterias+list(self.y_criteria.keys())))
-        self.ts.log(f'x_criterias={self.x_criteria}')
-        self.ts.log(f'y_criterias={self.y_criteria}')
-        self.ts.log(f'meas_values={self.meas_values}')
-        self.ts.log(f'param={self.param}')
 
         DataLogging.__init__(self)
         CriteriaValidation.__init__(self)
