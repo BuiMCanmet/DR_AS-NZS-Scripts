@@ -495,6 +495,7 @@ class DataLogging:
         daq.sc['EVENT'] = self.current_step_label + '_INIT'
         daq.data_sample()
         data = daq.data_capture_read()
+        daq.sc['EVENT'] = self.current_step_label
         if isinstance(self.x_criteria, list):
             for xs in self.x_criteria:
                 self.initial_value[xs] = {'x_value': self.get_measurement_total(data=data, type_meas=xs, log=False)}
@@ -541,7 +542,7 @@ class DataLogging:
         for i in range(self.n_tr):
             tr_list.append(self.initial_value['timestamp'] + timedelta(seconds=self.tr[i]))
             for meas_value in self.meas_values:
-                self.tr_value['%s_T_Com_%s' % (meas_value, i)] = None
+                self.tr_value['%s_T_COM_%s' % (meas_value, i)] = None
                 if meas_value in x:
                     self.tr_value['%s_T_COM_TARG_%s' % (meas_value, i)] = None
                 elif meas_value in y:
@@ -560,7 +561,12 @@ class DataLogging:
             daq.data_sample()  # sample new data
             data = daq.data_capture_read()  # Return dataset created from last data capture
 
+            # update the meas values in the dataset
+            self.update_measure_value(data, daq)
+
+            daq.sc['EVENT'] = "{0}_T_COM".format(self.current_step_label)
             # update daq.sc values for Y_TARGET, Y_TARGET_MIN, and Y_TARGET_MAX
+
             # store the daq.sc['Y_TARGET'], daq.sc['Y_TARGET_MIN'], and daq.sc['Y_TARGET_MAX'] in tr_value
 
             for meas_value in self.meas_values:
@@ -820,8 +826,30 @@ class VoltVar(EutParameters):
         }
         self.ts.log_debug(f'{self.param[VV]}')
 
+
     def create_vv_dict_steps(self, mode=None, secondary_pairs=None):
         pass
+
+    def update_target_value(self, value):
+
+        x = [self.param[self.region]['Vv1'], self.param[self.region]['Vv2'],
+             self.param[self.region]['Vv3'], self.param[self.region]['Vv4']]
+        y = [self.param[self.region]['Q1'], self.param[self.region]['Q2'],
+             self.param[self.region]['Q3'], self.param[self.region]['Q4']]
+        q_value = float(np.interp(value, x, y))
+        q_value *= self.pwr
+        return round(q_value, 1)
+
+    def update_measure_value(self, data, daq):
+
+        daq.sc['V_MEAS'] = self.get_measurement_total(data=data, type_meas='V', log=False)
+        daq.sc['Q_MEAS'] = self.get_measurement_total(data=data, type_meas='Q', log=False)
+
+    def calculate_min_max_values(self, daq, data):
+        v_meas = self.get_measurement_total(data=data, type_meas='V', log=False)
+        target_min = self.update_target_value(v_meas) - 0.04*self.s_rated
+        target_max = self.update_target_value(v_meas) + 0.04*self.s_rated
+
 
 class VoltWatt():
 
@@ -937,6 +965,24 @@ class VoltWatt():
             self.ts.log(f'v_step_dict={v_steps_dict}')
 
         return v_steps_dict
+      
+    def update_target_value(self, value):
+
+        x = [self.param[self.region]['Vw1'], self.param[self.region]['Vw2']]
+        y = [self.param[self.region]['P1'], self.param[self.region]['P2']]
+        q_value = float(np.interp(value, x, y))
+        q_value *= self.pwr
+        return round(q_value, 1)
+
+    def update_measure_value(self, data, daq):
+
+        daq.sc['V_MEAS'] = self.get_measurement_total(data=data, type_meas='V', log=False)
+        daq.sc['P_MEAS'] = self.get_measurement_total(data=data, type_meas='P', log=False)
+
+    def calculate_min_max_values(self, daq, data):
+        v_meas = self.get_measurement_total(data=data, type_meas='V', log=False)
+        target_min = self.update_target_value(v_meas) - 0.04 * self.s_rated
+        target_max = self.update_target_value(v_meas) + 0.04 * self.s_rated
 
 class ActiveFunction(EutParameters, DataLogging, UtilParameters, CriteriaValidation, VoltWatt):
     """
@@ -945,7 +991,6 @@ class ActiveFunction(EutParameters, DataLogging, UtilParameters, CriteriaValidat
     of all functions if needed.
     """
     def __init__(self, ts, functions):
-
         # Values defined as target/step values which will be controlled as step
         x_criterias = []
         # Values defined as values which will be controlled as step

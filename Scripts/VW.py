@@ -182,17 +182,18 @@ def vw_mode(vw_curves, mode=None):
             if eut is not None:
                 # Activate volt-var function with following parameters
                 # SunSpec convention is to use percentages for V and Q points.
-                vv_curve_params = {
-                    'v': [(vv_pairs['Vv1'] / v_nom) * 100, (vv_pairs['Vv2'] / v_nom) * 100,
-                          (vv_pairs['Vv3'] / v_nom) * 100, (vv_pairs['Vv4'] / v_nom) * 100],
-                    'var': [(vv_pairs['Q1'] / s_rated) * 100, (vv_pairs['Q2'] / s_rated) * 100,
-                            (vv_pairs['Q3'] / s_rated) * 100, (vv_pairs['Q4'] / s_rated) * 100],
-                    'vref': round(v_nom, 2),
-                    'RmpPtTms': vw_response_time
-                }
-                ts.log_debug(f'Sending Volt-Var points: {vv_curve_params}')
-                eut.volt_var(params={'Ena': True, 'ACTCRV': vw_curve, 'curve': vv_curve_params})
-                ts.log_debug(f'Initial EUT Volt-Var settings are {eut.volt_var()}')
+                if mode == 'Volt-Var':
+                    vv_curve_params = {
+                        'v': [(vv_pairs['Vv1'] / v_nom) * 100, (vv_pairs['Vv2'] / v_nom) * 100,
+                              (vv_pairs['Vv3'] / v_nom) * 100, (vv_pairs['Vv4'] / v_nom) * 100],
+                        'var': [(vv_pairs['Q1'] / s_rated) * 100, (vv_pairs['Q2'] / s_rated) * 100,
+                                (vv_pairs['Q3'] / s_rated) * 100, (vv_pairs['Q4'] / s_rated) * 100],
+                        'vref': round(v_nom, 2),
+                        'RmpPtTms': vw_response_time
+                    }
+                    ts.log_debug(f'Sending Volt-Var points: {vv_curve_params}')
+                    eut.volt_var(params={'Ena': True, 'ACTCRV': vw_curve, 'curve': vv_curve_params})
+                    ts.log_debug(f'Initial EUT Volt-Var settings are {eut.volt_var()}')
 
                 # Activate volt-watt function with following parameters
                 # SunSpec convention is to use percentages for V and P points.
@@ -321,6 +322,10 @@ def test_run():
         #vw_response_time = [1, 1, 1, 1]
 
         # Normal combined volt-var volt-watt test (Section 5.14.4)
+
+
+        v_nom = ts.param_value('eut.v_nom')
+
 
         if ts.param_value('vw.test_AA') == 'Enabled':
             vw_curves.append('AA')
