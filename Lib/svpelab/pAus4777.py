@@ -158,15 +158,15 @@ class UtilParameters:
 
     def reset_curve(self, region='AA'):
         self.region = region
-        self.ts.log_debug(f'P1547 Librairy curve has been set {region}')
+        self.ts.log_debug(f'P4777 Library curve has been set {region}')
 
     def reset_pwr(self, pwr=1.0):
         self.pwr = pwr
-        self.ts.log_debug(f'P1547 Librairy power level has been set {round(pwr*100)}%')
+        self.ts.log_debug(f'P4777 Library power level has been set {round(pwr*100)}%')
 
     def reset_filename(self, filename):
         self.filename = filename
-        self.ts.log_debug(f'P1547 Librairy filename has been set to {filename}')
+        self.ts.log_debug(f'P4777 Library filename has been set to {filename}')
 
     def set_step_label(self, starting_label=None):
         """
@@ -306,9 +306,9 @@ class DataLogging:
 
     def reset_time_settings(self, tr, number_tr=2):
         self.tr = tr
-        self.ts.log_debug(f'P1547 Time response has been set to {self.tr} seconds')
+        self.ts.log_debug(f'P4777 Time response has been set to {self.tr} seconds')
         self.n_tr = number_tr
-        self.ts.log_debug(f'P1547 Number of Time response has been set to {self.n_tr} cycles')
+        self.ts.log_debug(f'P4777 Number of Time response has been set to {self.n_tr} cycles')
 
     def set_sc_points(self):
         """
@@ -550,6 +550,7 @@ class DataLogging:
                     self.tr_value['%s_T_COM_%s_MIN' % (meas_value, i)] = None
                     self.tr_value['%s_T_COM_%s_MAX' % (meas_value, i)] = None
         tr_iter = 1
+
         for tr_ in tr_list:
             now = datetime.now()
             if now <= tr_:
@@ -691,6 +692,20 @@ class CriteriaValidation:
                 2) |Y_final - Y_Tcom_10s| < 2*Y_tol
 
         """
+        #self.ts.log_debug("Writing parameters:")
+        #for key in self.__dict__.keys():
+        #    self.ts.log_debug(key)
+        #self.ts.log_debug("Parameters written.")
+
+        #self.ts.log_debug(self.tr_value)
+        #for odict in self.tr_value:
+        #    self.ts.log_debug(f'Key =  {odict}')
+        s_rated = self.s_rated
+        #self.ts.log_debug(f's_rated = {s_rated}')
+        q_current = self.tr_value['Q_T_COM_TARG_2'];
+        #self.ts.log_debug(f'q_current = {q_current}')
+        p_limit = math.sqrt(s_rated*s_rated - q_current*q_current)
+        #self.ts.log_debug(f'p_limit = {p_limit}')
 
         for y in list(self.y_criteria.keys()):
             y_tol = self.s_rated * 0.04
@@ -698,6 +713,16 @@ class CriteriaValidation:
             y_final = self.tr_value[f'{y}_T_COM_TARG_{2}']
             y_Tcompletion_1s = self.tr_value[f'{y}_T_COM_{1}']
             y_Tcompletion_10s = self.tr_value[f'{y}_T_COM_{2}']
+
+            y_final_eval = abs(y_final - y_Tcompletion_10s)
+            y_final_eval_str = f'|{y_final:.2f} - {y_Tcompletion_10s:.2f}| <='  # TODO CHANGED FROM y_Tcompletion_1s
+            if y == 'P':
+                self.ts.log_debug('P registered')
+                y_final_eval = y_Tcompletion_10s - y_final
+                y_final_eval_str = f'{y_Tcompletion_10s:.2f} - {y_final:.2f} <='  # TODO CHANGED FROM y_Tcompletion_1s
+            else:
+                self.ts.log_debug('Q registered')
+            y_tol = self.s_rated * 0.04
 
 
             # pass/fail assessment for the response commencement time
@@ -711,13 +736,16 @@ class CriteriaValidation:
                               f' {2*y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{1}_PF"]))
 
             # pass/fail assessment for the response completion time
-            if abs(y_final - y_Tcompletion_10s) <= 2*y_tol:
+            if y_final_eval <= 2*y_tol:
                 self.tr_value[f'{y}_T_COM_{2}_PF'] = 'Pass'
             else:
                 self.tr_value[f'{y}_T_COM_{2}_PF'] = 'Fail'
 
-            self.ts.log_debug(f' Response completion time 10.2s for {y}, evaluation : '
-                              f'|{y_final:.2f} - {y_Tcompletion_1s:.2f}| <='
+            #self.ts.log_debug(f' Response completion time 10.2s for {y}, evaluation : '
+            #                  f'|{y_final:.2f} - {y_Tcompletion_1s:.2f}| <='
+            #                  f' {2 * y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{2}_PF"]))
+
+            self.ts.log_debug(f' Response completion time 10.2s for {y}, evaluation : {y_final_eval_str}'
                               f' {2 * y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{2}_PF"]))
 
 class ImbalanceComponent:
@@ -815,10 +843,10 @@ class VoltVar(EutParameters):
         }
 
         self.param[VV]['NZ'] = {
-            'Vv1': round((215./230.) * self.v_nom, 2),
-            'Vv2': round((230./230.) * self.v_nom, 2),
-            'Vv3': round((240./230.) * self.v_nom, 2),
-            'Vv4': round((255./230.) * self.v_nom, 2),
+            'Vv1': round((207./230.) * self.v_nom, 2),
+            'Vv2': round((220./230.) * self.v_nom, 2),
+            'Vv3': round((235./230.) * self.v_nom, 2),
+            'Vv4': round((244./230.) * self.v_nom, 2),
             'Q1': round(self.s_rated * 0.60, 2),
             'Q2': round(self.s_rated * 0, 2),
             'Q3': round(self.s_rated * 0, 2),
@@ -843,6 +871,7 @@ class VoltVar(EutParameters):
     def update_measure_value(self, data, daq):
 
         daq.sc['V_MEAS'] = self.get_measurement_total(data=data, type_meas='V', log=False)
+        daq.sc['P_MEAS'] = self.get_measurement_total(data=data, type_meas='P', log=False)
         daq.sc['Q_MEAS'] = self.get_measurement_total(data=data, type_meas='Q', log=False)
 
     def calculate_min_max_values(self, daq, data):
@@ -871,7 +900,7 @@ class VoltWatt():
         """
         self.param[VW] = {}
         self.param[VW]['AA'] = {
-            'Vw1': round((256./230.) * self.v_nom, 2),
+            'Vw1': round((253./230.) * self.v_nom, 2),
             'Vw2': round((260./230.) * self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
@@ -889,8 +918,8 @@ class VoltWatt():
             'P2': round(0.2*self.p_rated, 2)
         }
         self.param[VW]['NZ'] = {
-            'Vw1': round((241./230.) * self.v_nom, 2),
-            'Vw2': round((246./230.)* self.v_nom, 2),
+            'Vw1': round((242./230.) * self.v_nom, 2),
+            'Vw2': round((250./230.)* self.v_nom, 2),
             'P1': round(1.0*self.p_rated, 2),
             'P2': round(0.2*self.p_rated, 2)
         }
@@ -978,6 +1007,7 @@ class VoltWatt():
 
         daq.sc['V_MEAS'] = self.get_measurement_total(data=data, type_meas='V', log=False)
         daq.sc['P_MEAS'] = self.get_measurement_total(data=data, type_meas='P', log=False)
+        daq.sc['Q_MEAS'] = self.get_measurement_total(data=data, type_meas='Q', log=False)
 
     def calculate_min_max_values(self, daq, data):
         v_meas = self.get_measurement_total(data=data, type_meas='V', log=False)
