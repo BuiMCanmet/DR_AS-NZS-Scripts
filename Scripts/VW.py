@@ -75,6 +75,12 @@ def vw_mode(vw_curves, mode=None):
         var_rated = ts.param_value('eut.var_rated')
         s_rated = ts.param_value('eut.s_rated')
 
+        # DC power
+        if ts.param_value('pvsim.terrasas.pmp') is not None: # TODO - REPLACE WITH CORRECT REFERENCE
+            p_pvsim = ts.param_value('pvsim.terrasas.pmp')
+        else:
+            p_pvsim = p_rated
+
         # DC voltages
         v_in_nom = ts.param_value('eut.v_in_nom')
 
@@ -98,7 +104,7 @@ def vw_mode(vw_curves, mode=None):
             #VoltVar = pAus4777.VoltVar(ts=ts)
             Active_function = pAus4777.ActiveFunction(ts=ts, functions=[VW, VV])
         else:
-            Active_function = pAus4777.ActiveFunction(ts=ts, function=[VW])
+            Active_function = pAus4777.ActiveFunction(ts=ts, functions=[VW])
         #ts.log_debug(f"AUS4777,2 Library configured for {Active_function.script_complete_name}")
         #ts.log_debug(f"AUS4777,2 Library configured for {Active_function.VoltWatt.get_params()}")
 
@@ -139,17 +145,33 @@ def vw_mode(vw_curves, mode=None):
 
         ts.log(f'DAS device: {daq.info()}')
 
+        # Setting the pvsim to the rated power of the eut
+        if pv is not None:
+            pv.iv_curve_config(pmp=p_pvsim, vmp=v_in_nom)
+            #pv.iv_curve_config(pmp=p_rated, vmp=v_in_nom)
+            #pv.irradiance_set(0.)
+            #ts.log("PV simulator irradiance set to 0, sleeping for 15 seconds to allow EUT to shut down")
+            #ts.sleep(15)
+            pv.irradiance_set(1000.)
+            pv.power_on()  # Turn on DC so the EUT can be initialized
+            pvsim_sleeptime = 60
+            ts.log(f"PV simulator enabled, sleeping for {pvsim_sleeptime} seconds to allow EUT to stabilise")
+            ts.sleep(pvsim_sleeptime)
+
         # initialize the eut
         eut = der.der_init(ts)
         if eut is not None:
             eut.config()
-            ts.log_debug(eut.measurements())
+            # ts.log_debug(eut.measurements())
 
             #Deactivating all functions on EUT
-            eut.deactivate_all_fct()
+            #eut.deactivate_all_fct()
 
         # initialize the GridSim
         grid = gridsim.gridsim_init(ts, support_interfaces={'hil': chil})  # Turn on AC so the EUT can be initialized
+        gridsim_sleeptime = 120
+        ts.log(f"Grid simulator enabled, sleeping for {gridsim_sleeptime} seconds to allow EUT to connect")
+        ts.sleep(gridsim_sleeptime)
 
         # open result summary file
         result_summary_filename = 'result_summary.csv'
@@ -215,7 +237,8 @@ def vw_mode(vw_curves, mode=None):
                 grid.voltage(v_nom)
             # Setting the pvsim to the rated power of the eut
             if pv is not None:
-                pv.iv_curve_config(pmp=p_rated, vmp=v_in_nom)
+                pv.iv_curve_config(pmp=p_pvsim, vmp=v_in_nom)
+                #pv.iv_curve_config(pmp=p_rated, vmp=v_in_nom)
                 pv.irradiance_set(1000.)
 
             """
