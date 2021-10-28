@@ -49,15 +49,15 @@ import collections
 import cmath
 import math
 
-VV = 'VV'
-VW = 'VW'
+CRP = 'CRP'
 V = 'V'
 F = 'F'
 P = 'P'
 Q = 'Q'
 
-#Test protocole including VoltWatt and VoltVar
-def vw_mode(vw_curves, mode=None):
+
+# Test protocol including constant power factor (and maybe reactive power)
+def crp_mode(mode=None):
 
     result = script.RESULT_FAIL
     daq = None
@@ -90,21 +90,16 @@ def vw_mode(vw_curves, mode=None):
         v_high = ts.param_value('eut.v_high')
         phases = ts.param_value('eut.phases')
 
-        vw_response_time = 0
-        vw_timing = [ts.param_value('vw.commencement_time'),
-                     ts.param_value('vw.completion_time'),
-                     ts.param_value('vw.step_time_period')]
+        cpr_response_time = 0
+        crp_timing = [ts.param_value('crp.commencement_time'),  # TODO - Fix these names
+                     ts.param_value('crp.completion_time'),
+                     ts.param_value('crp.step_time_period')]
 
         """
         A separate module has been create for the DR_AS_NZS_4777.2 Standard
         """
         pAus4777.VersionValidation(script_version=ts.info.version)
-
-        if mode == 'Volt-Var':
-            #VoltVar = pAus4777.VoltVar(ts=ts)
-            Active_function = pAus4777.ActiveFunction(ts=ts, functions=[VW, VV])
-        else:
-            Active_function = pAus4777.ActiveFunction(ts=ts, functions=[VW])
+        Active_function = pAus4777.ActiveFunction(ts=ts, functions=[CRP])
         #ts.log_debug(f"AUS4777,2 Library configured for {Active_function.script_complete_name}")
         #ts.log_debug(f"AUS4777,2 Library configured for {Active_function.VoltWatt.get_params()}")
 
@@ -113,7 +108,7 @@ def vw_mode(vw_curves, mode=None):
         #result_params = VoltWatt.get_rslt_param_plot(x_axis_specs=x_axis_specs)
         result_params = Active_function.get_rslt_param_plot(x_axis_specs=x_axis_specs)
 
-        ts.log_debug(result_params)
+        #ts.log_debug(result_params)
 
         '''
         Connect the EUT according to the instructions and specifications provided by the manufacturer 
@@ -148,10 +143,6 @@ def vw_mode(vw_curves, mode=None):
         # Setting the pvsim to the rated power of the eut
         if pv is not None:
             pv.iv_curve_config(pmp=p_pvsim, vmp=v_in_nom)
-            #pv.iv_curve_config(pmp=p_rated, vmp=v_in_nom)
-            #pv.irradiance_set(0.)
-            #ts.log("PV simulator irradiance set to 0, sleeping for 15 seconds to allow EUT to shut down")
-            #ts.sleep(15)
             pv.irradiance_set(1000.)
             pv.power_on()  # Turn on DC so the EUT can be initialized
             pvsim_sleeptime = 30
@@ -169,9 +160,10 @@ def vw_mode(vw_curves, mode=None):
 
         # initialize the GridSim
         grid = gridsim.gridsim_init(ts, support_interfaces={'hil': chil})  # Turn on AC so the EUT can be initialized
-        gridsim_sleeptime = 90
-        ts.log(f"Grid simulator enabled, sleeping for {gridsim_sleeptime} seconds to allow EUT to connect")
-        ts.sleep(gridsim_sleeptime)
+        if grid is not None:
+            gridsim_sleeptime = 90
+            ts.log(f"Grid simulator enabled, sleeping for {gridsim_sleeptime} seconds to allow EUT to connect")
+            ts.sleep(gridsim_sleeptime)
 
         # open result summary file
         result_summary_filename = 'result_summary.csv'
@@ -180,116 +172,112 @@ def vw_mode(vw_curves, mode=None):
         ts.log(f'col_name={Active_function.get_rslt_sum_col_name()}')
         result_summary.write(Active_function.get_rslt_sum_col_name())
 
+        Active_function.reset_time_settings(tr=crp_timing, number_tr=3)
+
+        crp_settings = Active_function.get_params(function=CRP, region=None)
+        #ts.log_debug(f'crp-settings:{crp_settings}')
+
         '''
-        Repeat the test for each regions curves (Australia A, Australia B, Australia C, New Zealand and Allowed range)
+        (a) Enable the constant power factor mode.
         '''
-        ts.log(f'curves={vw_curves}')
-        for vw_curve in vw_curves:
-            #ts.log(f'curves={vw_curve}')
-            ts.log(f'Starting test with characteristic curve {vw_curve}')
-            Active_function.reset_curve(vw_curve)
-            Active_function.reset_time_settings(tr=vw_timing, number_tr=3)
-            
-            if mode == 'Volt-Var':
-                vv_pairs = Active_function.get_params(function=VV, region=vw_curve)
-                ts.log_debug(f'volt-var_pairs:{vv_pairs}')
 
-            vw_pairs = Active_function.get_params(function=VW, region=vw_curve)
-            ts.log_debug(f'volt-watt_pairs:{vw_pairs}')
+        if eut is not None: # TODO - Need to add a changing RP to the test proper. Possibly move this entirely?
+            # Activate constant reactive power function with following parameters
+            q_target = crp_settings['RP']['Q1']
+            #ts.log_debug(f'crp_setting_params:{crp_setting_params}')
+            #ts.log_debug(f'Sending RP settings: {crp_setting_params}')
 
-            '''
-            (a) Enable the volt-watt and volt-var response modes.
-            '''
+            parameters = {'Ena': True,
+                          'VArPct_Mod': 1,  # 1 = WMax percentage
+                          'VArWMaxPct': (100. * q_target) / var_rated}
+            ts.log('Parameters set: %s' % parameters)
+            eut.reactive_power(params=parameters)
 
+            #eut.reactive_power(params={'Ena': True, 'RP': crp_setting_params['RP']})  # TODO - this doesn't look right at all. Doesn't this need a dict {'RP': rp}?
+            #ts.log_debug(f'RP settings sent: {parameters}, now retrieving set data.')
+            ts.log_debug(f'Initial EUT RP settings are {eut.reactive_power()}')
+        """
+         (b) Set the grid source equal to the grid test voltage. Vary the energy source until the a.c. output
+            of the device under test equals 100 ± 5 % of its rated active power output.
+        """
+        # Setting grid to vnom before test
+        if grid is not None:
+            grid.voltage(v_nom)
+        # Setting the pvsim to the rated power of the eut
+        if pv is not None:
+            pv.iv_curve_config(pmp=p_pvsim, vmp=v_in_nom)
+            #pv.iv_curve_config(pmp=p_rated, vmp=v_in_nom)
+            pv.irradiance_set(1000.)
+
+        """
+        Going through test steps
+        """
+
+        p_q_steps_dict = Active_function.create_crp_dict_steps()
+
+        dataset_filename = 'CRP'
+        Active_function.reset_filename(filename=dataset_filename)
+        # Start the data acquisition systems
+        daq.data_capture(True)
+
+        prev_q_target = -9999
+
+        for step_label, p_q_step in p_q_steps_dict.items():
+            #ts.log_debug(step_label)
+            #ts.log_debug(p_q_step)
+        #for rp_key, rp_setting in crp_settings['RP'].items():
             if eut is not None:
-                # Activate volt-var function with following parameters
-                # SunSpec convention is to use percentages for V and Q points.
-                if mode == 'Volt-Var':
-                    vv_curve_params = {
-                        'v': [(vv_pairs['Vv1'] / v_nom) * 100, (vv_pairs['Vv2'] / v_nom) * 100,
-                              (vv_pairs['Vv3'] / v_nom) * 100, (vv_pairs['Vv4'] / v_nom) * 100],
-                        'var': [(vv_pairs['Q1'] / s_rated) * 100, (vv_pairs['Q2'] / s_rated) * 100,
-                                (vv_pairs['Q3'] / s_rated) * 100, (vv_pairs['Q4'] / s_rated) * 100],
-                        'vref': round(v_nom, 2),
-                        'RmpPtTms': vw_response_time
-                    }
-                    ts.log_debug(f'Sending Volt-Var points: {vv_curve_params}')
-                    eut.volt_var(params={'Ena': True, 'ACTCRV': vw_curve, 'curve': vv_curve_params})
-                    ts.log_debug(f'Initial EUT Volt-Var settings are {eut.volt_var()}')
+                # Activate constant power factor function with following parameters
+                #crp_setting_params = {'RP': [rp_setting]}
+                #ts.log_debug(f'Sending RP settings: {rp_setting}')
+                #eut.reactive_power(params={'Ena': True, 'RP': rp_setting})
+                q_target = p_q_step['Q']
+                if q_target != prev_q_target:
+                    #q_target = rp_setting
+                    #ts.log_debug(f'crp_setting_params:{crp_setting_params}')
+                    #ts.log_debug(f'Sending RP settings: {crp_setting_params}')
 
-                # Activate volt-watt function with following parameters
-                # SunSpec convention is to use percentages for V and P points.
-                vw_curve_params = {
-                    'v': [(vw_pairs['Vw1'] / v_nom) * 100,
-                          (vw_pairs['Vw2'] / v_nom) * 100],
-                    'w': [(vw_pairs['P1'] / s_rated) * 100,
-                          (vw_pairs['P2'] / s_rated) * 100]
-                }
-                ts.log_debug(f'Sending Volt-Watt points: {vw_curve_params}')
-                eut.volt_watt(params={'Ena': True, 'ACTCRV': vw_curve, 'curve': vw_curve_params})
-                ts.log_debug(f'Initial EUT Volt-Watt settings are {eut.volt_watt()}')
-            """
-             (b) Set the grid source equal to the grid test voltage. Vary the energy source until the a.c. output
-                of the device under test equals 100 ± 5 % of its rated active power output.
-            """
-            # Setting grid to vnom before test
-            if grid is not None:
-                grid.voltage(v_nom)
-            # Setting the pvsim to the rated power of the eut
+                    parameters = {'Ena': True,
+                                  'VArPct_Mod': 1,  # 1 = WMax percentage
+                                  'VArWMaxPct': (100. * q_target) / var_rated}
+                    ts.log('Parameters set: %s' % parameters)
+                    eut.reactive_power(params=parameters)
+                    ts.log_debug(f'EUT RP settings are {eut.reactive_power()}')
+                    prev_q_target = q_target
+
+            #for p_key, p_setting in crp_settings['P'].items():
+            p_setting = p_q_step['P']
+
             if pv is not None:
-                pv.iv_curve_config(pmp=p_pvsim, vmp=v_in_nom)
-                #pv.iv_curve_config(pmp=p_rated, vmp=v_in_nom)
-                pv.irradiance_set(1000.)
+                #ts.log_debug(f'Sending power setting: {p_setting}')
+                pv.power_set(p_setting)
 
-            """
-            Going trough step C to step N
-            """
-            #Construct the v_steps_dict from step c to step n
+            #Active_function.start(daq=daq, step_label='X') # TODO - What to do about step_label?
+            Active_function.start(daq=daq, step_label=step_label)
 
-            if mode == 'Volt-Var':
-                v_steps_dict = Active_function.create_vw_dict_steps(mode=mode, secondary_pairs=vv_pairs)
-            else:
-                v_steps_dict = Active_function.create_vw_dict_steps(mode=mode)
-            # ts.log_debug(v_steps_dict)
+            Active_function.record_timeresponse(daq=daq, step_value=min(p_setting, p_rated * abs(q_target)),
+                                                y_target=q_target)
+            #Active_function.record_timeresponse(daq=daq, step_value=min(p_setting, p_rated * abs(rp_setting)),
+            #                                    y_target=rp_setting)
+            Active_function.evaluate_criterias()
+            result_summary.write(Active_function.write_rslt_sum())
 
-            dataset_filename = f'VW_{vw_curve}'
-            if mode == 'Volt-Var':
-                dataset_filename += '_combined_VV'
-            Active_function.reset_filename(filename=dataset_filename)
-            # Start the data acquisition systems
-            daq.data_capture(True)
+        """
+        (o) Summarize results in a table from initial value to final voltage value showing voltage,
+            apparent power, active power, reactive power and time to reach required reactive power level
+            for each voltage step. Plot results on a graph of voltage versus apparent power, active power
+            and reactive power.
+        """
 
-            for step_label, v_step in v_steps_dict.items():
-                ts.log(f'Voltage step: setting Grid simulator voltage to {v_step} ({step_label})')
-                if 'C' in step_label or 'H' in step_label:
-                    if grid is not None:
-                        grid.voltage(v_step)
-                else:
-                    Active_function.start(daq=daq, step_label=step_label)
-
-                    if grid is not None:
-                        grid.voltage(v_step)
-
-                    Active_function.record_timeresponse(daq=daq, step_value=v_step)
-                    Active_function.evaluate_criterias()
-                    result_summary.write(Active_function.write_rslt_sum())
-
-            """
-            (o) Summarize results in a table from initial value to final voltage value showing voltage,
-                apparent power, active power, reactive power and time to reach required reactive power level
-                for each voltage step. Plot results on a graph of voltage versus apparent power, active power
-                and reactive power.
-            """
-
-            ts.log('Sampling complete')
-            dataset_filename = dataset_filename + ".csv"
-            daq.data_capture(False)
-            ds = daq.data_capture_dataset()
-            ts.log(f'Saving file: {dataset_filename}')
-            ds.to_csv(ts.result_file_path(dataset_filename))
-            result_params['plot.title'] = dataset_filename.split('.csv')[0]
-            ts.result_file(dataset_filename, params=result_params)
-            result = script.RESULT_COMPLETE
+        ts.log('Sampling complete')
+        dataset_filename = dataset_filename + ".csv"
+        daq.data_capture(False)
+        ds = daq.data_capture_dataset()
+        ts.log(f'Saving file: {dataset_filename}')
+        ds.to_csv(ts.result_file_path(dataset_filename))
+        result_params['plot.title'] = dataset_filename.split('.csv')[0]
+        ts.result_file(dataset_filename, params=result_params)
+        result = script.RESULT_COMPLETE
 
     except script.ScriptFail as e:
         reason = str(e)
@@ -331,38 +319,10 @@ def test_run():
     result = script.RESULT_FAIL
 
     try:
-        """
-        Configuration
-        """
-
-        mode = ts.param_value('vw.mode')
-
-        """
-        Test Configuration
-        """
-        # list of active tests
-        vw_curves = []
-        #vw_response_time = [1, 1, 1, 1]
-
-        # Normal combined volt-var volt-watt test (Section 5.14.4)
-
 
         v_nom = ts.param_value('eut.v_nom')
 
-
-        if ts.param_value('vw.test_AA') == 'Enabled':
-            vw_curves.append('AA')
-        if ts.param_value('vw.test_AB') == 'Enabled':
-            vw_curves.append('AB')
-        if ts.param_value('vw.test_AC') == 'Enabled':
-            vw_curves.append('AC')
-        if ts.param_value('vw.test_NZ') == 'Enabled':
-            vw_curves.append('NZ')
-        if ts.param_value('vw.test_AR') == 'Enabled':
-            vw_curves.append(5)
-            #TODO TEST_AR to be implemented
-
-        result = vw_mode(vw_curves=vw_curves, mode=mode)
+        result = crp_mode(mode=None)
 
     except script.ScriptFail as e:
         reason = str(e)
@@ -407,30 +367,11 @@ def run(test_script):
 
 info = script.ScriptInfo(name=os.path.basename(__file__), run=run, version='1.0.1')
 
-# vw test parameters
-info.param_group('vw', label='Test Parameters')
-info.param('vw.mode', label='Combining additional functions', default='None', values=['Volt-Var', 'None'])
-info.param('vw.test_AA', label='Australia A curve', default='Enabled', values=['Disabled', 'Enabled'])
-info.param('vw.test_AB', label='Australia B curve', default='Disabled', values=['Disabled', 'Enabled'])
-info.param('vw.test_AC', label='Australia C curve', default='Disabled', values=['Disabled', 'Enabled'])
-info.param('vw.test_NZ', label='New Zealand curve', default='Disabled', values=['Disabled', 'Enabled'])
-info.param('vw.test_AR', label='Allowed Range curve', default='Disabled', values=['Disabled', 'Enabled'])
-info.param('vw.commencement_time', label='Commencement time(s):', default=1.2)
-info.param('vw.completion_time', label='Completion time(s):', default=10.2)
-info.param('vw.step_time_period', label='Step time period(s):', default=20.0)
-
-info.param('vw.test_AR_Vw1', label='Setting Vw1', default=250.,
-           active='vw.test_AR', active_value=['Enabled'])
-info.param('vw.test_AR_Vw2', label='Setting Vw2', default=260.,
-           active='vw.test_AR', active_value=['Enabled'])
-info.param('vw.test_AR_Vv1', label='Setting Vv1', default=200.,
-           active='vw.test_AR', active_value=['Enabled'])
-info.param('vw.test_AR_Vv2', label='Setting Vv2', default=220.,
-           active='vw.test_AR', active_value=['Enabled'])
-info.param('vw.test_AR_Vv3', label='Setting Vv3', default=240.,
-           active='vw.test_AR', active_value=['Enabled'])
-info.param('vw.test_AR_Vv4', label='Setting Vv4', default=260.,
-           active='vw.test_AR', active_value=['Enabled'])
+# crp test parameters
+info.param_group('crp', label='Test Parameters')
+info.param('crp.commencement_time', label='Commencement time(s):', default=1.2)
+info.param('crp.completion_time', label='Completion time(s):', default=10.2)
+info.param('crp.step_time_period', label='Step time period(s):', default=20.0)
 
 # EUT general parameters
 info.param_group('eut', label='EUT Parameters', glob=True)

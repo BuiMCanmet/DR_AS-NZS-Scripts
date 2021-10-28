@@ -111,8 +111,8 @@ class EutParameters(object):
             '''
             self.MRA={
                 'V': 0.01*self.v_nom,
-                'Q': 0.05*ts.param_value('eut.s_rated'),
-                'P': 0.05*ts.param_value('eut.s_rated'),
+                'Q': 0.04*ts.param_value('eut.s_rated'),
+                'P': 0.04*ts.param_value('eut.s_rated'),
                 'F': 0.01,
                 'T': 0.01
             }
@@ -335,7 +335,10 @@ class DataLogging:
                 row_data.append('%s_TARGET_MAX' % meas_value)
 
         row_data.append('EVENT')
-        self.ts.log_debug('Sc points: %s' % row_data)
+        # self.ts.log_debug('Sc points: %s' % row_data)
+        # self.ts.log_debug('xs: %s' % xs)
+        # self.ts.log_debug('ys: %s' % ys)
+        # self.ts.log_debug('meas_values: %s' % self.meas_values)
         self.sc_points['sc'] = row_data
 
     def set_result_summary_name(self):
@@ -351,7 +354,8 @@ class DataLogging:
 
         # Time response criteria will take last placed value of Y variables
         for y in ys:
-            row_data.append(f'{y}_BEFORE_RCT_1S')
+            if VW in self.functions:  # Specific time-response required
+                row_data.append(f'{y}_BEFORE_RCT_1S')
             row_data.append(f'{y}_BEFORE_RCT_10s')
 
         for meas_value in self.meas_values:
@@ -376,7 +380,7 @@ class DataLogging:
         :return: result_params
         """
         if x_axis_specs is None:
-            x_axis_specs = {'min': 'Not congigured'}
+            x_axis_specs = {'min': 'Not configured'}
 
         y_variables = self.y_criteria
         x_variables = self.x_criteria
@@ -391,17 +395,17 @@ class DataLogging:
         # y2_points = '%s_TARGET,%s_MEAS' % (y2, y2)
 
         for y in y_variables:
-            self.ts.log_debug('y_temp: %s' % y)
+            # self.ts.log_debug('y_temp: %s' % y)
             # y_temp = self.get_measurement_label('%s' % y)
             y_temp = '{}'.format(','.join(str(x) for x in self.get_measurement_label('%s' % y)))
             y_title.append(FULL_NAME[y])
             y_points.append(y_temp)
-        self.ts.log_debug('y_points: %s' % y_points)
+        # self.ts.log_debug('y_points: %s' % y_points)
         y_points = ','.join(y_points)
         y_title = ','.join(y_title)
 
         for x in x_variables:
-            self.ts.log_debug('x_variable for result: %s' % x)
+            # self.ts.log_debug('x_variable for result: %s' % x)
             x_temp = '{}'.format(','.join(str(x) for x in self.get_measurement_label('%s' % x)))
             x_title.append(FULL_NAME[x])
             x_points.append(x_temp)
@@ -454,7 +458,8 @@ class DataLogging:
 
         # Time response criteria will take last placed value of Y variables
         for y in ys:
-            row_data.append(str(self.tr_value[f'{y}_T_COM_{1}_PF']))
+            if VW in self.functions:  # Specific time-response required
+                row_data.append(str(self.tr_value[f'{y}_T_COM_{1}_PF']))
             row_data.append(str(self.tr_value[f'{y}_T_COM_{2}_PF']))
 
 
@@ -538,6 +543,7 @@ class DataLogging:
         y = list(self.y_criteria.keys())
         T_Com_names = {1: '1S', 2: '10S', 3: '20S'}
         tr_list = []
+        # self.ts.log_debug(f'tr - {self.tr}')
 
         for i in range(self.n_tr):
             tr_list.append(self.initial_value['timestamp'] + timedelta(seconds=self.tr[i]))
@@ -580,11 +586,10 @@ class DataLogging:
                         self.tr_value['%s_T_COM_TARG_%s' % (meas_value, tr_iter)] = step_value
                         self.ts.log('X Value (%s) = %s' % (meas_value, daq.sc['%s_MEAS' % meas_value]))
                     elif meas_value in y:
-                        self.ts.log_debug(f'{meas_value} and {y}')
-                        daq.sc['%s_TARGET' % meas_value] = self.update_target_value(value=step_value,
-                                                                                    function=self.y_criteria[meas_value])
+                        # self.ts.log_debug(f'{meas_value} and {y}')
+                        daq.sc['%s_TARGET' % meas_value] = self.update_target_value(value=step_value, function=self.y_criteria[meas_value], y_target=y_target)
                         daq.sc['%s_TARGET_MIN' % meas_value], daq.sc['%s_TARGET_MAX' % meas_value] =\
-                            self.calculate_min_max_values(data=data, function=self.y_criteria[meas_value])
+                            self.calculate_min_max_values(data=data, function=self.y_criteria[meas_value], y_target=y_target)
 
                         self.tr_value[f'{meas_value}_T_COM_TARG_{tr_iter}'] = daq.sc['%s_TARGET' % meas_value]
                         self.tr_value[f'{meas_value}_T_COM_{tr_iter}_MIN'] = daq.sc['%s_TARGET_MIN' % meas_value]
@@ -605,7 +610,7 @@ class DataLogging:
         # except Exception as e:
         #    raise p1547Error('Error in get_tr_data(): %s' % (str(e)))
 
-    def update_target_value(self, value, function):
+    def update_target_value(self, value, function, y_target=None):
 
         if function == VV:
             vv_pairs=self.get_params(function=VV, region=self.region)
@@ -625,7 +630,24 @@ class DataLogging:
             p_value *= self.pwr
             return round(p_value, 1)
 
-    def calculate_min_max_values(self, data, function):
+        if function == CPF:
+            # self.ts.log_debug('update_target_value - CPF')
+            # self.ts.log_debug(f'CPF target calculation')
+            q_value = math.sqrt(pow(value, 2) * ((1 / pow(y_target, 2)) - 1)) * np.sign(y_target)  # TODO - what about negative Q?
+            # self.ts.log_debug(f'p_value - {value}')
+            # self.ts.log_debug(f'y_target - {y_target}')
+            # self.ts.log_debug(f'q_value - {q_value}')
+            return round(q_value, 1)
+
+        if function == CRP:
+            # self.ts.log_debug(f'CRP target calculation, y_target = {y_target}')
+            q_value = -y_target
+            return round(q_value, 1)
+
+    def calculate_min_max_values(self, data, function, y_target=None):
+        # self.ts.log_debug('calculate_min_max_values')
+        # self.ts.log_debug(data)
+        # self.ts.log_debug(function)
         if function == VV:
 
             v_meas = self.get_measurement_total(data=data, type_meas='V', log=False)
@@ -639,6 +661,25 @@ class DataLogging:
             v_meas = self.get_measurement_total(data=data, type_meas='V', log=False)
             target_min = self.update_target_value(v_meas + self.MRA['V'] * 1.5, function=VW) - (self.MRA['P'] * 1.5)
             target_max = self.update_target_value(v_meas - self.MRA['V'] * 1.5, function=VW) + (self.MRA['P'] * 1.5)
+
+            return target_min, target_max
+
+        elif function == CPF:
+            # self.ts.log_debug('calculate_min_max_values - CPF') # TODO - account for P going -ve & PF being -ve
+            p_meas = self.get_measurement_total(data=data, type_meas='P', log=False)
+            target_min = self.update_target_value(value=p_meas - self.MRA['P'] * np.sign(y_target), function=CPF,
+                                                  y_target=y_target) - self.MRA['Q']
+            target_max = self.update_target_value(value=p_meas + self.MRA['P'] * np.sign(y_target), function=CPF,
+                                                  y_target=y_target) + self.MRA['Q']
+
+            return target_min, target_max
+
+        elif function == CRP:
+            p_meas = self.get_measurement_total(data=data, type_meas='P', log=False)
+            target_min = self.update_target_value(value=p_meas - self.MRA['P'] * np.sign(y_target), function=CRP,
+                                                  y_target=y_target) - self.MRA['Q']
+            target_max = self.update_target_value(value=p_meas + self.MRA['P'] * np.sign(y_target), function=CRP,
+                                                  y_target=y_target) + self.MRA['Q']
 
             return target_min, target_max
 
@@ -702,51 +743,92 @@ class CriteriaValidation:
         #    self.ts.log_debug(f'Key =  {odict}')
         s_rated = self.s_rated
         #self.ts.log_debug(f's_rated = {s_rated}')
-        q_current = self.tr_value['Q_T_COM_TARG_2'];
+        #q_current = self.tr_value['Q_T_COM_TARG_2'];
         #self.ts.log_debug(f'q_current = {q_current}')
-        p_limit = math.sqrt(s_rated*s_rated - q_current*q_current)
+        #p_limit = math.sqrt(s_rated*s_rated - q_current*q_current)
         #self.ts.log_debug(f'p_limit = {p_limit}')
 
-        for y in list(self.y_criteria.keys()):
-            y_tol = self.s_rated * 0.04
-            y_initial = self.initial_value[y]["y_value"]
-            y_final = self.tr_value[f'{y}_T_COM_TARG_{2}']
-            y_Tcompletion_1s = self.tr_value[f'{y}_T_COM_{1}']
-            y_Tcompletion_10s = self.tr_value[f'{y}_T_COM_{2}']
+        if VW in self.functions:  # Specific time-response required
+            # self.ts.log_debug('In VW etc. function(s)')
+            for y in list(self.y_criteria.keys()):
+                y_tol = self.s_rated * 0.04
+                y_initial = self.initial_value[y]["y_value"]
+                y_final = self.tr_value[f'{y}_T_COM_TARG_{2}']
+                y_Tcompletion_1s = self.tr_value[f'{y}_T_COM_{1}']
+                y_Tcompletion_10s = self.tr_value[f'{y}_T_COM_{2}']
 
-            y_final_eval = abs(y_final - y_Tcompletion_10s)
-            y_final_eval_str = f'|{y_final:.2f} - {y_Tcompletion_10s:.2f}| <='  # TODO CHANGED FROM y_Tcompletion_1s
-            if y == 'P':
-                self.ts.log_debug('P registered')
-                y_final_eval = y_Tcompletion_10s - y_final
-                y_final_eval_str = f'{y_Tcompletion_10s:.2f} - {y_final:.2f} <='  # TODO CHANGED FROM y_Tcompletion_1s
-            else:
-                self.ts.log_debug('Q registered')
-            y_tol = self.s_rated * 0.04
+                y_final_eval = abs(y_final - y_Tcompletion_10s)
+                y_final_eval_str = f'|{y_final:.2f} - {y_Tcompletion_10s:.2f}| <='  # TODO CHANGED FROM y_Tcompletion_1s
+                if y == 'P':
+                    # self.ts.log_debug('P registered')
+                    y_final_eval = y_Tcompletion_10s - y_final
+                    y_final_eval_str = f'{y_Tcompletion_10s:.2f} - {y_final:.2f} <='  # TODO CHANGED FROM y_Tcompletion_1s
+                # else:
+                    # self.ts.log_debug('Q registered')
+                y_tol = self.s_rated * 0.04
 
 
-            # pass/fail assessment for the response commencement time
-            if abs(y_Tcompletion_1s - y_initial) >= 2*y_tol:
-                self.tr_value[f'{y}_T_COM_{1}_PF'] = 'Pass'
-            else:
-                self.tr_value[f'{y}_T_COM_{1}_PF'] = 'Fail'
+                # pass/fail assessment for the response commencement time
+                if abs(y_Tcompletion_1s - y_initial) >= 2*y_tol:
+                    self.tr_value[f'{y}_T_COM_{1}_PF'] = 'Pass'
+                else:
+                    self.tr_value[f'{y}_T_COM_{1}_PF'] = 'Fail'
 
-            self.ts.log_debug(f' Response commencement time 1.2s for {y}, evaluation : '
-                              f'|{y_Tcompletion_1s:.2f} - {y_initial:.2f}| >='
-                              f' {2*y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{1}_PF"]))
+                self.ts.log_debug(f' Response commencement time 1.2s for {y}, evaluation : '
+                                  f'|{y_Tcompletion_1s:.2f} - {y_initial:.2f}| >='
+                                  f' {2*y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{1}_PF"]))
 
-            # pass/fail assessment for the response completion time
-            if y_final_eval <= 2*y_tol:
-                self.tr_value[f'{y}_T_COM_{2}_PF'] = 'Pass'
-            else:
-                self.tr_value[f'{y}_T_COM_{2}_PF'] = 'Fail'
+                # pass/fail assessment for the response completion time
+                if y_final_eval <= 2*y_tol:
+                    self.tr_value[f'{y}_T_COM_{2}_PF'] = 'Pass'
+                else:
+                    self.tr_value[f'{y}_T_COM_{2}_PF'] = 'Fail'
 
-            #self.ts.log_debug(f' Response completion time 10.2s for {y}, evaluation : '
-            #                  f'|{y_final:.2f} - {y_Tcompletion_1s:.2f}| <='
-            #                  f' {2 * y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{2}_PF"]))
+                #self.ts.log_debug(f' Response completion time 10.2s for {y}, evaluation : '
+                #                  f'|{y_final:.2f} - {y_Tcompletion_1s:.2f}| <='
+                #                  f' {2 * y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{2}_PF"]))
 
-            self.ts.log_debug(f' Response completion time 10.2s for {y}, evaluation : {y_final_eval_str}'
-                              f' {2 * y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{2}_PF"]))
+                self.ts.log_debug(f' Response completion time 10.2s for {y}, evaluation : {y_final_eval_str}'
+                                  f' {2 * y_tol:.2f}' + '[%s]' % (self.tr_value[f"{y}_T_COM_{2}_PF"]))
+        else:  # standard result-accuracy evaluation suitable
+            # self.ts.log_debug('In CPF etc. function(s)')
+            # self.ts.log_debug(f'self.functions = {self.functions}')
+            # self.ts.log_debug(f'tr_value = {self.tr_value}')
+            for y in list(self.y_criteria.keys()):
+                #y_tol = self.s_rated * 0.04
+                y_initial = self.initial_value[y]["y_value"]
+                y_final = self.tr_value[f'{y}_T_COM_TARG_{2}']  # TODO - this should be the evaluation point
+                y_min = self.tr_value[f'{y}_T_COM_{2}_MIN']
+                y_max = self.tr_value[f'{y}_T_COM_{2}_MAX']
+                y_Tcompletion_10s = self.tr_value[f'{y}_T_COM_{2}']
+
+                y_final_eval = abs(y_final - y_Tcompletion_10s)
+                y_final_eval_str = f'{y_min:.2f} <= {y_Tcompletion_10s:.2f} <= {y_max:.2f}'
+                '''y_final_eval_str = f'|{y_final:.2f} - {y_Tcompletion_10s:.2f}| <='
+                if y == 'P':
+                    self.ts.log_debug('P registered')
+                    y_final_eval = y_Tcompletion_10s - y_final
+                    y_final_eval_str = f'{y_Tcompletion_10s:.2f} - {y_final:.2f} <='
+                else:
+                    self.ts.log_debug('Q registered')'''
+                # y_tol = self.s_rated * 0.04
+
+
+                # pass/fail assessment for the response commencement time
+                # self.tr_value[f'{y}_T_COM_{1}_PF'] = 'Pass'
+
+                #self.ts.log_debug(f' Response commencement time 1.2s for {y}, '
+                #                  f'evaluation irrelevant for functions {self.functions}')
+
+                # pass/fail assessment for the response completion time
+                if y_min <= y_Tcompletion_10s <= y_max: #y_final_eval <= 2*y_tol:
+                    self.tr_value[f'{y}_T_COM_{2}_PF'] = 'Pass'
+                else:
+                    self.tr_value[f'{y}_T_COM_{2}_PF'] = 'Fail'
+
+                self.ts.log_debug(f' Response completion time 10.2s for {y}, evaluation : {y_final_eval_str}'
+                                  f'[%s]' % (self.tr_value[f"{y}_T_COM_{2}_PF"]))
+
 
 class ImbalanceComponent:
     pass
@@ -852,7 +934,7 @@ class VoltVar(EutParameters):
             'Q3': round(self.s_rated * 0, 2),
             'Q4': round(self.s_rated * -0.6, 2)
         }
-        self.ts.log_debug(f'{self.param[VV]}')
+        # self.ts.log_debug(f'{self.param[VV]}')
 
 
     def create_vv_dict_steps(self, mode=None, secondary_pairs=None):
@@ -1014,13 +1096,157 @@ class VoltWatt():
         target_min = self.update_target_value(v_meas) - 0.04 * self.s_rated
         target_max = self.update_target_value(v_meas) + 0.04 * self.s_rated
 
-class ActiveFunction(EutParameters, DataLogging, UtilParameters, CriteriaValidation, VoltWatt):
+#class CPF(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
+class ConstantPF():
+
+    meas_values = ['V', 'Q', 'P', 'PF']
+    x_criteria = ['P']
+    y_criteria = {'Q': CPF}
+    script_complete_name = 'Constant Power Factor'
+
+    def __init__(self, ts):
+        ConstantPF.set_params(self)
+        # Create the pairs need
+
+    def set_params(self): # TODO - complete parameters
+        self.param[CPF] = {}
+        self.param[CPF]['P'] = {
+            'P1': round(1.0*self.p_rated, 2),
+            'P2': round(0.75*self.p_rated, 2),
+            'P3': round(0.5*self.p_rated, 2),
+            'P4': round(0.25*self.p_rated, 2)
+        }
+
+        self.param[CPF]['PF'] = { # TODO - Add min & max as a parameter to the test
+            'PF1': 1.0,
+            'PF2': 0.8,
+            'PF3': -0.8
+        }
+        # self.ts.log_debug(f'{self.param[CPF]}')
+
+    def create_cpf_dict_steps(self):
+        """
+        Function to create dictionnary depending on which mode volt-watt is running
+        :return: Power and power factor step dictionnary
+        """
+
+        # Construct the v_steps_dict from step c to step n
+        p_pf_steps_dict = collections.OrderedDict()
+
+        crp_pairs = self.get_params(function=CPF)
+
+        # step D 1 to 3
+        power_factor = crp_pairs['PF']['PF1']
+        p_pf_steps_dict['Step_D_1'] = {'P': crp_pairs['P']['P1'], 'PF': power_factor}
+        p_pf_steps_dict['Step_D_2'] = {'P': crp_pairs['P']['P2'], 'PF': power_factor}
+        p_pf_steps_dict['Step_D_3'] = {'P': crp_pairs['P']['P3'], 'PF': power_factor}
+        p_pf_steps_dict['Step_D_4'] = {'P': crp_pairs['P']['P4'], 'PF': power_factor}
+
+        # step H 1 to 3
+        power_factor = crp_pairs['PF']['PF2']
+        p_pf_steps_dict['Step_H_1'] = {'P': crp_pairs['P']['P1'], 'PF': power_factor}
+        p_pf_steps_dict['Step_H_2'] = {'P': crp_pairs['P']['P2'], 'PF': power_factor}
+        p_pf_steps_dict['Step_H_3'] = {'P': crp_pairs['P']['P3'], 'PF': power_factor}
+        p_pf_steps_dict['Step_H_4'] = {'P': crp_pairs['P']['P4'], 'PF': power_factor}
+
+        # step L 1 to 3
+        power_factor = crp_pairs['PF']['PF3']
+        p_pf_steps_dict['Step_L_1'] = {'P': crp_pairs['P']['P1'], 'PF': power_factor}
+        p_pf_steps_dict['Step_L_2'] = {'P': crp_pairs['P']['P2'], 'PF': power_factor}
+        p_pf_steps_dict['Step_L_3'] = {'P': crp_pairs['P']['P3'], 'PF': power_factor}
+        p_pf_steps_dict['Step_L_4'] = {'P': crp_pairs['P']['P4'], 'PF': power_factor}
+
+        self.ts.log(f'v_step_dict={p_pf_steps_dict}')
+
+        return p_pf_steps_dict
+
+    def update_target_value(self, value):
+        self.ts.log_error('Landed in update_target_value - no code written!')
+        return None
+
+    def update_measure_value(self, data, daq):
+        self.ts.log_error('Landed in update_measure_value - no code written!')
+        pass
+
+    def calculate_min_max_values(self, daq, data):
+        self.ts.log_error('Landed in calculate_min_max_values - no code written!')
+        pass
+
+#class CRP(EutParameters, UtilParameters, DataLogging, CriteriaValidation):
+class ConstantRP():
+
+    meas_values = ['V', 'Q', 'P']
+    x_criteria = ['P']
+    y_criteria = {'Q': CRP}
+    script_complete_name = 'Constant Reactive Power'
+
+    def __init__(self, ts):
+        ConstantRP.set_params(self)
+        # Create the pairs need
+
+    def set_params(self): # TODO - complete parameters
+        self.param[CRP] = {}
+        self.param[CRP]['P'] = {
+            'P1': round(1.0*self.p_rated, 2),
+            'P2': round(0.6*self.p_rated, 2),
+            'P3': round(0.2*self.p_rated, 2)
+        }
+
+        self.param[CRP]['RP'] = {
+            'Q1': round(-0.6*self.p_rated, 2),
+            'Q2': round(0.6*self.p_rated, 2)
+        }
+        # self.ts.log_debug(f'{self.param[CRP]}')
+
+    def create_crp_dict_steps(self):
+        """
+        Function to create dictionnary depending on which mode volt-watt is running
+        :return: Power and power factor step dictionnary
+        """
+
+        # Construct the v_steps_dict from step c to step n
+        p_q_steps_dict = collections.OrderedDict()
+
+        crp_pairs = self.get_params(function=CRP)
+
+        # step D 1 to 3
+        reactive_power = crp_pairs['RP']['Q1']
+        p_q_steps_dict['Step_D_1'] = {'P': crp_pairs['P']['P1'], 'Q': reactive_power}
+        p_q_steps_dict['Step_D_2'] = {'P': crp_pairs['P']['P2'], 'Q': reactive_power}
+        p_q_steps_dict['Step_D_3'] = {'P': crp_pairs['P']['P3'], 'Q': reactive_power}
+
+        # step H 1 to 3
+        reactive_power = crp_pairs['RP']['Q2']
+        p_q_steps_dict['Step_H_1'] = {'P': crp_pairs['P']['P1'], 'Q': reactive_power}
+        p_q_steps_dict['Step_H_2'] = {'P': crp_pairs['P']['P2'], 'Q': reactive_power}
+        p_q_steps_dict['Step_H_3'] = {'P': crp_pairs['P']['P3'], 'Q': reactive_power}
+
+        self.ts.log(f'v_step_dict={p_q_steps_dict}')
+
+        return p_q_steps_dict
+
+    def update_target_value(self, value):
+        self.ts.log_error('Landed in update_target_value - no code written!')
+        return None
+
+    def update_measure_value(self, data, daq):
+        self.ts.log_error('Landed in update_measure_value - no code written!')
+        pass
+
+    def calculate_min_max_values(self, daq, data):
+        self.ts.log_error('Landed in update_measure_value - no code written!')
+        pass
+
+
+class ActiveFunction(EutParameters, DataLogging, UtilParameters, CriteriaValidation, VoltWatt, ConstantPF, ConstantRP):
     """
     This class acts as the main function
     As multiple functions might be needed for a compliance script, this function will inherit
     of all functions if needed.
     """
     def __init__(self, ts, functions):
+        # ts.log_debug(f'functions = {functions}')
+        # ts.log_debug(f'CPF = {CPF}')
         # Values defined as target/step values which will be controlled as step
         x_criterias = []
         # Values defined as values which will be controlled as step
@@ -1039,11 +1265,24 @@ class ActiveFunction(EutParameters, DataLogging, UtilParameters, CriteriaValidat
             VoltVar.__init__(self, ts)
             x_criterias += VoltVar.x_criteria
             self.y_criteria.update(VoltVar.y_criteria)
+        if CPF in functions:
+            ts.log_debug(f'functions = {functions}')
+            ConstantPF.__init__(self, ts)
+            x_criterias += ConstantPF.x_criteria
+            self.y_criteria.update(ConstantPF.y_criteria)
+        if CRP in functions:
+            ConstantRP.__init__(self, ts)
+            x_criterias += ConstantRP.x_criteria
+            self.y_criteria.update(ConstantRP.y_criteria)
 
         #Remove duplicates
         self.x_criteria = list(OrderedDict.fromkeys(x_criterias))
         #self.y_criteria=list(OrderedDict.fromkeys(y_criterias))
         self.meas_values = list(OrderedDict.fromkeys(x_criterias+list(self.y_criteria.keys())))
+        # self.ts.log_debug(f'x_criteria = {self.x_criteria}')
+        # self.ts.log_debug(f'y_criteria = {self.y_criteria}')
+        # self.ts.log_debug(f'meas_values = {self.meas_values}')
+        self.functions = functions
 
         DataLogging.__init__(self)
         CriteriaValidation.__init__(self)

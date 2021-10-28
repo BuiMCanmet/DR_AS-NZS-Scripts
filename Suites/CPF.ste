@@ -1,9 +1,6 @@
-<suite globals="True" name="4777_Testing - manual">
+<suite globals="True" name="CPF">
   <members>
-    <member name="VW.ste" />
-    <member name="VW_VV.ste" />
-    <member name="CPF.ste" />
-    <member name="CRP.ste" />
+    <member name="CPF.tst" />
   </members>
   <params>
     <param name="pvsim.terrasas.channel" type="string">1</param>
@@ -21,7 +18,7 @@
     <param name="das.elspec_g4420.slave_id" type="int">159</param>
     <param name="gridsim.ametek.ip_addr" type="string">192.168.1.102</param>
     <param name="der.sma.ipaddr" type="string">192.168.1.109</param>
-    <param name="eut.v_low" type="float">212.0</param>
+    <param name="eut.v_low" type="float">213.0</param>
     <param name="eut.v_nom" type="float">230.0</param>
     <param name="gridsim.ametek.v_nom" type="float">230.0</param>
     <param name="eut.v_high" type="float">265.0</param>
@@ -30,20 +27,20 @@
     <param name="pvsim.terrasas.vmp" type="float">460.0</param>
     <param name="der.sma.ipport" type="int">502</param>
     <param name="das.elspec_g4420.ip_port" type="int">502</param>
-    <param name="pvsim.terrasas.overvoltage" type="float">660.0</param>
+    <param name="pvsim.terrasas.overvoltage" type="float">600.0</param>
     <param name="eut.p_min" type="float">1000.0</param>
     <param name="das.elspec_g4420.sample_interval" type="int">1000</param>
+    <param name="eut.var_rated" type="float">2000.0</param>
     <param name="eut.s_rated" type="float">5000.0</param>
     <param name="eut.p_rated" type="float">5000.0</param>
-    <param name="eut.var_rated" type="float">5000.0</param>
     <param name="gridsim.ametek.ip_port" type="int">5025</param>
     <param name="pvsim.terrasas.pmp" type="float">6500.0</param>
     <param name="der.sma.gridguard" type="int">1954999648</param>
     <param name="gridsim.mode" type="string">Ametek</param>
+    <param name="gridsim.auto_config" type="string">Disabled</param>
     <param name="hil.mode" type="string">Disabled</param>
     <param name="pvsim.terrasas.curve_type" type="string">EN50530</param>
     <param name="das.mode" type="string">Elspec G4420</param>
-    <param name="gridsim.auto_config" type="string">Enabled</param>
     <param name="das.elspec_g4420.comm" type="string">Modbus TCP</param>
     <param name="der.mode" type="string">SMA</param>
     <param name="gridsim.ametek.comm" type="string">TCP/IP</param>
